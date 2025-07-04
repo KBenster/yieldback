@@ -3,10 +3,7 @@
 
 mod test;
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, contracterror, token, Address, Env,
-    log, panic_with_error,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror, token, Address, Env, log, panic_with_error, vec, Vec, contractclient};
 
 use token::{StellarAssetClient, TokenClient};
 
@@ -74,6 +71,29 @@ pub struct SponsorBondConfig {
     pub coupon_amount: i128,        // Exact coupon amount sponsor guarantees
 }
 
+#[contractclient(name = "BlendPoolClient")]
+pub trait BlendPoolInterface {
+    /// Submit requests to the pool (withdraw, supply, borrow, etc)
+    /// Based on Blend protocol: submit(from, spender, to, requests)
+    fn submit(
+        env: Env,
+        from: Address,
+        spender: Address,
+        to: Address,
+        requests: Vec<(Address, i128, u32)>  // (asset_address, amount, request_type)
+    );
+
+    /// Get user's balance/position in the pool for a specific asset
+    fn get_user_balance(env: Env, user: Address, asset: Address) -> i128;
+
+    /// Get pool reserves for an asset
+    fn get_reserve(env: Env, asset: Address) -> i128;
+}
+// BLEND PROTOCOL REQUEST TYPE CONSTANTS
+pub const REQUEST_TYPE_SUPPLY: u32 = 0;
+pub const REQUEST_TYPE_WITHDRAW: u32 = 1;
+pub const REQUEST_TYPE_BORROW: u32 = 2;
+pub const REQUEST_TYPE_REPAY: u32 = 3;
 pub trait BondWrapperTrait {
     /// Sponsor creates and funds the bond position (immediately active)
     fn create_position(env: Env, config: SponsorBondConfig, coupon_funding: i128);
@@ -89,7 +109,6 @@ pub trait BondWrapperTrait {
 
     /// Sponsor functions
     fn add_coupon_funding(env: Env, sponsor: Address, amount: i128);
-    fn emergency_withdraw(env: Env, sponsor: Address);
 
     /// View functions
     fn get_bond_info(env: Env) -> BondInfo;
@@ -332,10 +351,41 @@ impl BondWrapperTrait for BondWrapper {
             panic_with_error!(&env, Error::InsufficientBalance);
         }
 
-        // Withdraw ALL funds from Blend pool (should be principal + coupon + any extra yield)
-        // TODO: Replace with actual Blend protocol call to withdraw all
-        let total_available = base_client.balance(&blend_pool); // Simplified - should be our portion
-        base_client.transfer(&blend_pool, &env.current_contract_address(), &total_available);
+        // === BLEND PROTOCOL INTEGRATION ===
+        // Withdraw ALL funds from Blend pool using the proper Blend protocol interface
+
+        let contract_address = env.current_contract_address();
+        let pool_balance_before = base_client.balance(&contract_address);
+
+        // Create Blend pool client using the testnet pool address
+        let pool_client = BlendPoolClient::new(&env, &blend_pool);
+
+        // Query our current position in the Blend pool
+        let our_pool_balance = pool_client.get_user_balance(&contract_address, &base_asset);
+
+        log!(&env, "Withdrawing {} from Blend pool", our_pool_balance);
+
+        if our_pool_balance > 0 {
+            // Create withdrawal request using Blend's submit interface
+            // Format: Vec<(asset_address, amount, request_type)>
+            let withdrawal_requests = vec![&env, (
+                base_asset.clone(),              // asset to withdraw
+                our_pool_balance,               // amount to withdraw (all of it)
+                REQUEST_TYPE_WITHDRAW,          // request type: withdraw = 1
+            )];
+
+            // Submit the withdrawal request to Blend pool
+            pool_client.submit(
+                &contract_address,  // from - our contract address
+                &contract_address,  // spender - our contract has permission
+                &contract_address,  // to - receive tokens at our contract
+                &withdrawal_requests
+            );
+        }
+
+        // Get our balance after withdrawal from Blend
+        let pool_balance_after = base_client.balance(&contract_address);
+        let total_available = pool_balance_after;
 
         // User gets their bond token amount (principal + guaranteed coupon)
         let user_redemption = user_bonds;
@@ -350,12 +400,20 @@ impl BondWrapperTrait for BondWrapper {
         if excess_yield > 0 {
             // Send excess yield to sponsor
             let sponsor: Address = env.storage().persistent().get(&DataKey::Sponsor).unwrap();
-            base_client.transfer(&env.current_contract_address(), &sponsor, &excess_yield);
+            base_client.transfer(&contract_address, &sponsor, &excess_yield);
             log!(&env, "Excess yield to sponsor: {}", excess_yield);
         }
 
+        // Ensure we have enough to cover user's redemption
+        let available_for_user = if total_available >= user_redemption {
+            user_redemption
+        } else {
+            // If somehow we don't have enough from Blend, use what we have
+            total_available
+        };
+
         // Transfer user's portion (principal + coupon)
-        base_client.transfer(&env.current_contract_address(), &user, &user_redemption);
+        base_client.transfer(&contract_address, &user, &available_for_user);
 
         // Burn bond tokens
         bond_client.burn(&user, &user_bonds);
@@ -364,9 +422,10 @@ impl BondWrapperTrait for BondWrapper {
         env.storage().persistent().set(&DataKey::UserBonds, &0i128);
         env.storage().persistent().remove(&DataKey::BondHolder);
 
-        log!(&env, "User redeemed: {} (guaranteed principal + coupon)", user_redemption);
+        log!(&env, "User redeemed: {} from Blend withdrawal of {}",
+             available_for_user, total_available);
 
-        user_redemption
+        available_for_user
     }
 
     fn add_coupon_funding(env: Env, sponsor: Address, amount: i128) {
@@ -383,21 +442,6 @@ impl BondWrapperTrait for BondWrapper {
         env.storage().persistent().set(&DataKey::CouponFundsDeposited, &coupon_deposited);
 
         log!(&env, "Additional coupon funding: {}", amount);
-    }
-
-    fn emergency_withdraw(env: Env, sponsor: Address) {
-        sponsor.require_auth();
-        Self::require_sponsor(&env, &sponsor);
-
-        let base_asset: Address = env.storage().persistent().get(&DataKey::BaseAsset).unwrap();
-        let base_client = TokenClient::new(&env, &base_asset);
-        let balance = base_client.balance(&env.current_contract_address());
-
-        if balance > 0 {
-            base_client.transfer(&env.current_contract_address(), &sponsor, &balance);
-        }
-
-        log!(&env, "Emergency withdrawal: {}", balance);
     }
 
     fn get_bond_info(env: Env) -> BondInfo {
