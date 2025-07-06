@@ -101,9 +101,6 @@ pub trait BondWrapperTrait {
     /// User takes the entire bond position
     fn deposit(env: Env, user: Address, amount: i128);
 
-    /// Harvest yield from Blend pool
-    fn harvest(env: Env);
-
     /// Redeem bond tokens at maturity
     fn redeem(env: Env, user: Address) -> i128;
 
@@ -248,79 +245,6 @@ impl BondWrapperTrait for BondWrapper {
 
         log!(&env, "Position TAKEN by user: {} principal + {} coupon = {} total to Blend",
              amount, coupon_amount, total_to_blend);
-    }
-
-    fn harvest(env: Env) {
-        Self::require_initialized(&env);
-
-        let current_time = env.ledger().timestamp();
-        let last_harvest: u64 = env.storage().persistent().get(&DataKey::LastHarvestTime).unwrap();
-
-        // Prevent too frequent harvesting (minimum 1 hour)
-        if current_time - last_harvest < 3600 {
-            panic_with_error!(&env, Error::HarvestTooEarly);
-        }
-
-        let base_asset: Address = env.storage().persistent().get(&DataKey::BaseAsset).unwrap();
-        let blend_token: Address = env.storage().persistent().get(&DataKey::BlendToken).unwrap();
-        let blend_pool: Address = env.storage().persistent().get(&DataKey::BlendPool).unwrap();
-        let sponsor: Address = env.storage().persistent().get(&DataKey::Sponsor).unwrap();
-
-        let base_client = TokenClient::new(&env, &base_asset);
-        let blnd_client = TokenClient::new(&env, &blend_token);
-
-        // Get balance before harvest
-        let base_balance_before = base_client.balance(&env.current_contract_address());
-        let blnd_balance_before = blnd_client.balance(&env.current_contract_address());
-
-        // === STEP 1: Claim rewards from Blend protocol ===
-        // TODO: Replace with actual Blend protocol calls
-        // This might look like:
-        // let blend_client = BlendClient::new(&env, &blend_pool);
-        // blend_client.claim_rewards(&env.current_contract_address());
-        // blend_client.withdraw_interest(&base_asset, &amount_available);
-
-        // Get balance after harvest
-        let base_balance_after = base_client.balance(&env.current_contract_address());
-        let blnd_balance_after = blnd_client.balance(&env.current_contract_address());
-
-        let base_yield = base_balance_after - base_balance_before;
-        let blnd_yield = blnd_balance_after - blnd_balance_before;
-
-        // === STEP 2: Convert BLND tokens to base asset (if any) ===
-        let mut total_yield_in_base = base_yield;
-
-        if blnd_yield > 0 {
-            // TODO: Swap BLND to base asset via DEX
-            // This might involve calling a DEX contract like:
-            // let dex_client = DexClient::new(&env, &dex_address);
-            // let swapped_amount = dex_client.swap(&blend_token, &base_asset, &blnd_yield);
-            // total_yield_in_base += swapped_amount;
-
-            // For now, we'll assume BLND has some value equivalent
-            // In practice, you'd get the actual swap amount
-            log!(&env, "BLND yield collected: {} (needs to be swapped)", blnd_yield);
-        }
-
-        // === STEP 3: All EXCESS yield goes to sponsor ===
-        // Note: User is already guaranteed their principal + coupon
-        // Any yield beyond that amount goes to sponsor
-        if total_yield_in_base > 0 {
-            // Transfer ALL yield to sponsor (they'll get net profit after user redemption)
-            base_client.transfer(&env.current_contract_address(), &sponsor, &total_yield_in_base);
-            log!(&env, "All yield sent to sponsor: {}", total_yield_in_base);
-        }
-
-        // Send any remaining BLND tokens directly to sponsor
-        if blnd_yield > 0 {
-            blnd_client.transfer(&env.current_contract_address(), &sponsor, &blnd_yield);
-            log!(&env, "BLND emissions sent to sponsor: {}", blnd_yield);
-        }
-
-        log!(&env, "Harvest completed - Base yield: {}, BLND yield: {}",
-             base_yield, blnd_yield);
-
-        env.storage().persistent().set(&DataKey::LastHarvestTime, &current_time);
     }
 
     fn redeem(env: Env, user: Address) -> i128 {

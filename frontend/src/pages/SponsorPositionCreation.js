@@ -30,10 +30,10 @@ export default function SponsorPositionCreation() {
   const [deploymentStatus, setDeploymentStatus] = useState('');
   const [contractAddress, setContractAddress] = useState('');
 
-  // Initialize Stellar Wallets Kit
+  // Initializing stellar wallets kit
   useEffect(() => {
     const kit = new StellarWalletsKit({
-      network: WalletNetwork.TESTNET, // Change to MAINNET for production
+      network: WalletNetwork.TESTNET,
       selectedWalletId: XBULL_ID,
       modules: allowAllModules(),
     });
