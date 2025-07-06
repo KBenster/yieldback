@@ -37,7 +37,7 @@ fn create_test_env() -> (
     let blend_token_admin = Address::generate(&env);
 
     // Create token contracts
-    let bond_token = create_token_contract(&env, &bond_token_admin);
+    let bond_token = create_token_contract(&env, &bond_wrapper_id);
     let base_asset = create_token_contract(&env, &base_asset_admin);
     let blend_token = create_token_contract(&env, &blend_token_admin);
 
@@ -153,7 +153,7 @@ fn test_deposit_success() {
         sponsor,
         user,
         treasury,
-        _bond_token_admin,
+        bond_token_admin, // This is now bond_wrapper_id
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
@@ -164,7 +164,7 @@ fn test_deposit_success() {
 
     let client = BondWrapperClient::new(&env, &bond_wrapper_id);
 
-    // Create position first
+    // Create position first - include bond_token_admin in config
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
         treasury: treasury.clone(),
