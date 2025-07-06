@@ -102,9 +102,7 @@ export default function SponsorPositionCreation() {
       // Get account information
       const account = await server.getAccount(connectedWallet.address);
       
-      // You'll need to replace 'YOUR_WASM_HASH' with the actual hash of your uploaded WASM
-      // This should be the hash you got when you uploaded your WASM file to the network
-      const wasmHash = 'YOUR_WASM_HASH'; // Replace with actual WASM hash
+      const wasmHash = 'CBQ76YMMZ5VWCRY5PZEZRS4QSMY43WYYXHR6BPS6YNBDCA7IOQ223AO4';
       
       // Prepare contract creation arguments
       const contractArgs = [
@@ -134,7 +132,7 @@ export default function SponsorPositionCreation() {
       // Build transaction
       const transaction = new TransactionBuilder(new Account(connectedWallet.address, account.sequenceNumber()), {
         fee: BASE_FEE,
-        networkPassphrase: Networks.TESTNET, // Change to Networks.PUBLIC for mainnet
+        networkPassphrase: Networks.TESTNET,
       })
         .addOperation(operation)
         .addMemo(Memo.text('Smart Contract Creation'))

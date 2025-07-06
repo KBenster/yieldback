@@ -26,7 +26,6 @@ pub enum DataKey {
     TotalBondsIssued,  // Total bond tokens issued
     UserDeposited,     // User's deposit amount
     CouponFundsDeposited, // Sponsor's coupon guarantee funds
-    LastHarvestTime,   // Last harvest timestamp
     IsMatured,         // Whether bond has matured
     IsActive,          // Whether position is open for deposit
     IsTaken,           // Whether position has been taken by a user
@@ -51,7 +50,6 @@ pub enum Error {
     BondMatured = 5,
     BondNotMatured = 6,
     InsufficientBalance = 7,
-    HarvestTooEarly = 8,
     PositionNotActive = 9,
     InsufficientCouponFunds = 10,
     PositionAlreadyTaken = 11,
@@ -117,12 +115,11 @@ pub struct BondInfo {
     pub total_bonds_issued: i128,
     pub user_deposited: i128,
     pub bond_holder: Option<Address>,   // The single user who took this position
-    pub coupon_amount: i128,            // Simplified - sponsor's coupon amount
+    pub coupon_amount: i128,            // sponsor's coupon amount
     pub maturity_timestamp: u64,
     pub is_matured: bool,
     pub is_active: bool,
     pub is_taken: bool,                 // Whether position has been claimed
-    pub last_harvest_time: u64,
 }
 
 #[contracttype]
@@ -182,14 +179,10 @@ impl BondWrapperTrait for BondWrapper {
         env.storage().persistent().set(&DataKey::TotalBondsIssued, &0i128);
         env.storage().persistent().set(&DataKey::UserDeposited, &0i128);
         env.storage().persistent().set(&DataKey::CouponFundsDeposited, &coupon_funding);
-        env.storage().persistent().set(&DataKey::LastHarvestTime, &current_time);
         env.storage().persistent().set(&DataKey::IsMatured, &false);
         env.storage().persistent().set(&DataKey::IsActive, &true); // ACTIVE immediately!
         env.storage().persistent().set(&DataKey::IsTaken, &false);
         env.storage().persistent().set(&DataKey::UserBonds, &0i128);
-
-        log!(&env, "Bond position created and ACTIVE - amount: {}, coupon: {}, duration: {} seconds",
-             config.deposit_amount, config.coupon_amount, config.bond_duration);
     }
 
     fn deposit(env: Env, user: Address, amount: i128) {
@@ -226,7 +219,7 @@ impl BondWrapperTrait for BondWrapper {
         // Get sponsor's coupon funds
         let coupon_amount: i128 = env.storage().persistent().get(&DataKey::CouponAmount).unwrap();
 
-        // Send EVERYTHING to Blend pool (user principal + sponsor coupon)
+        // Send total to blend pool
         let total_to_blend = amount + coupon_amount;
         base_client.transfer(&env.current_contract_address(), &blend_pool, &total_to_blend);
 
@@ -242,9 +235,6 @@ impl BondWrapperTrait for BondWrapper {
         env.storage().persistent().set(&DataKey::BondHolder, &user);
         env.storage().persistent().set(&DataKey::IsTaken, &true);
         env.storage().persistent().set(&DataKey::IsActive, &false); // Position now closed
-
-        log!(&env, "Position TAKEN by user: {} principal + {} coupon = {} total to Blend",
-             amount, coupon_amount, total_to_blend);
     }
 
     fn redeem(env: Env, user: Address) -> i128 {
@@ -275,8 +265,7 @@ impl BondWrapperTrait for BondWrapper {
             panic_with_error!(&env, Error::InsufficientBalance);
         }
 
-        // === BLEND PROTOCOL INTEGRATION ===
-        // Withdraw ALL funds from Blend pool using the proper Blend protocol interface
+        // Withdraw funds from Blend pool using the Blend protocol interface
 
         let contract_address = env.current_contract_address();
         let pool_balance_before = base_client.balance(&contract_address);
@@ -286,8 +275,6 @@ impl BondWrapperTrait for BondWrapper {
 
         // Query our current position in the Blend pool
         let our_pool_balance = pool_client.get_user_balance(&contract_address, &base_asset);
-
-        log!(&env, "Withdrawing {} from Blend pool", our_pool_balance);
 
         if our_pool_balance > 0 {
             // Create withdrawal request using Blend's submit interface
@@ -325,7 +312,6 @@ impl BondWrapperTrait for BondWrapper {
             // Send excess yield to sponsor
             let sponsor: Address = env.storage().persistent().get(&DataKey::Sponsor).unwrap();
             base_client.transfer(&contract_address, &sponsor, &excess_yield);
-            log!(&env, "Excess yield to sponsor: {}", excess_yield);
         }
 
         // Ensure we have enough to cover user's redemption
@@ -346,12 +332,11 @@ impl BondWrapperTrait for BondWrapper {
         env.storage().persistent().set(&DataKey::UserBonds, &0i128);
         env.storage().persistent().remove(&DataKey::BondHolder);
 
-        log!(&env, "User redeemed: {} from Blend withdrawal of {}",
-             available_for_user, total_available);
 
         available_for_user
     }
 
+    //A sponsor could increase their position if it isnt taken quickly
     fn add_coupon_funding(env: Env, sponsor: Address, amount: i128) {
         sponsor.require_auth();
         Self::require_sponsor(&env, &sponsor);
@@ -365,7 +350,6 @@ impl BondWrapperTrait for BondWrapper {
         coupon_deposited += amount;
         env.storage().persistent().set(&DataKey::CouponFundsDeposited, &coupon_deposited);
 
-        log!(&env, "Additional coupon funding: {}", amount);
     }
 
     fn get_bond_info(env: Env) -> BondInfo {
@@ -383,7 +367,6 @@ impl BondWrapperTrait for BondWrapper {
             is_matured: Self::is_matured(&env),
             is_active: env.storage().persistent().get(&DataKey::IsActive).unwrap_or(false),
             is_taken: env.storage().persistent().get(&DataKey::IsTaken).unwrap_or(false),
-            last_harvest_time: env.storage().persistent().get(&DataKey::LastHarvestTime).unwrap(),
         }
     }
 

@@ -85,7 +85,7 @@ function Home() {
           </div>
 
           <div className="mt-8 bg-gray-50 p-6 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-3 text-center">Why Choose YieldBack.Cash?</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 text-center">Benefits of YieldBack.Cash</h3>
             <div className="grid sm:grid-cols-3 gap-4 text-center">
               <div>
                 <div className="text-blue-600 font-semibold mb-1">Secure</div>
