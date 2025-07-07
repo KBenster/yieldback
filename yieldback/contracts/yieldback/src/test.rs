@@ -74,6 +74,7 @@ fn test_create_position_success() {
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
+        bond_token: blend_token.address.clone(),
         bond_duration: 86400, // 1 day
         deposit_amount: 1000,
         coupon_amount: 100,
