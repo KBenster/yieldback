@@ -93,14 +93,14 @@ export default function SponsorPositionCreation() {
     setDeploymentStatus('Creating position on Blend...');
 
     try {
-      // Initialize Soroban RPC client
+      // Initializing Soroban RPC client
       const server = new StellarSdk.rpc.Server('https://soroban-testnet.stellar.org');
       
       // Get account information
       const account = await server.getAccount(connectedWallet.address);
       
-      // Your contract address (already deployed instance)
-      const contractAddress = 'CD5CD56U3M3FW32BXJYBRRL2X3X2FWKMCCGZQKMH7WCXBTOTSCPYEWDZ';
+      // Presently deployed contract instance
+      const contractAddress = 'CBOW5TXMJ6P7KR4VPFBOSKOT7RSRNL5O6AF4VXTJLGGKEV36OFNBAE7H';
       
       // Convert form data to proper values
       const bondDurationSeconds = parseInt(formData.daysUntilMaturity) * 24 * 60 * 60; // Convert days to seconds
@@ -109,17 +109,16 @@ export default function SponsorPositionCreation() {
       
       // Create the sponsor bond config as a native JS object
       const sponsorBondConfig = {
-        sponsor: connectedWallet.address,
-        //treasury: BLEND_TESTNET_CONFIG.TREASURY || null,
         base_asset: BLEND_TESTNET_CONFIG.USDC_ASSET,
         blend_pool: BLEND_TESTNET_CONFIG.BLEND_POOL,
         blend_token: BLEND_TESTNET_CONFIG.BLND_TOKEN,
         bond_duration: bondDurationSeconds,
+        coupon_amount: couponAmountStroops,
         deposit_amount: depositAmountStroops,
-        coupon_amount: couponAmountStroops
+        sponsor: connectedWallet.address
       };
 
-      // Convert to ScVal format for Soroban - use the map type for struct-like objects
+      // Convert to ScVal format for Soroban
       const configScVal = StellarSdk.nativeToScVal(sponsorBondConfig);
       const couponFundingScVal = StellarSdk.nativeToScVal(couponAmountStroops);
 
@@ -146,12 +145,10 @@ export default function SponsorPositionCreation() {
         .setTimeout(300)
         .build();
 
-      setDeploymentStatus('Preparing transaction...');
 
       // Prepare and simulate the transaction
       const preparedTransaction = await server.prepareTransaction(transaction);
 
-      setDeploymentStatus('Please approve the transaction in your wallet...');
 
       // Sign transaction with wallet
       const { signedTxXdr } = await walletKit.signTransaction(
@@ -162,12 +159,10 @@ export default function SponsorPositionCreation() {
         }
       );
 
-      setDeploymentStatus('Submitting transaction to Stellar network...');
 
       // Submit transaction
       const result = await server.sendTransaction(signedTxXdr);
       
-      setDeploymentStatus('Waiting for confirmation...');
 
       // Wait for confirmation
       let status = await server.getTransaction(result.hash);
@@ -185,7 +180,6 @@ export default function SponsorPositionCreation() {
           positionId = StellarSdk.scValToNative(status.returnValue);
         }
         
-        setDeploymentStatus('Position created successfully on Blend!');
         setContractAddress(result.hash); // Use transaction hash as reference
         
         // Store position details for display
@@ -212,28 +206,11 @@ export default function SponsorPositionCreation() {
         localStorage.setItem('yieldback_positions', JSON.stringify(existingPositions));
         
       } else if (status.status === 'FAILED') {
-        const errorMessage = status.resultMetaXdr ? 
-          `Transaction failed: ${status.resultMetaXdr}` : 
-          'Transaction failed for unknown reason';
-        setDeploymentStatus(errorMessage);
         console.error('Transaction failed:', status);
-      } else {
-        setDeploymentStatus('Transaction timeout. Please check Stellar Explorer for status.');
       }
 
     } catch (error) {
       console.error('Error creating position:', error);
-      
-      // More specific error handling
-      if (error.message.includes('insufficient balance')) {
-        setDeploymentStatus('Insufficient balance to create position and pay fees.');
-      } else if (error.message.includes('user_declined')) {
-        setDeploymentStatus('Transaction cancelled by user.');
-      } else if (error.message.includes('network')) {
-        setDeploymentStatus('Network error. Please check your connection and try again.');
-      } else {
-        setDeploymentStatus(`Failed to create position: ${error.message}`);
-      }
     } finally {
       setIsDeploying(false);
     }
@@ -354,38 +331,6 @@ export default function SponsorPositionCreation() {
           >
             {isDeploying ? 'Deploying Contract...' : 'Create Smart Contract Position'}
           </button>
-        </div>
-
-        {/* Status Display */}
-        {deploymentStatus && (
-          <div className={`mt-4 p-3 rounded-md ${
-            deploymentStatus.includes('success') ? 'bg-green-100 text-green-800' :
-            deploymentStatus.includes('failed') || deploymentStatus.includes('Error') ? 'bg-red-100 text-red-800' :
-            'bg-yellow-100 text-yellow-800'
-          }`}>
-            <p className="text-sm">{deploymentStatus}</p>
-          </div>
-        )}
-
-        {/* Contract Address Display */}
-        {contractAddress && (
-          <div className="mt-4 p-3 bg-green-100 rounded-md">
-            <h4 className="text-sm font-medium text-green-800 mb-1">Contract Deployed!</h4>
-            <p className="text-xs text-green-700 font-mono break-all">
-              Transaction Hash: {contractAddress}
-            </p>
-          </div>
-        )}
-
-        {/* Current Values Display */}
-        <div className="mt-8 p-4 bg-gray-100 rounded-md">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Current Values:</h3>
-          <div className="text-sm text-gray-600 space-y-1">
-            <div>Coupon Amount: {formData.coupon ? `${formData.coupon} USDC` : 'Not set'}</div>
-            <div>Principal Amount: {formData.userPrincipal ? `${formData.userPrincipal} USDC` : 'Not set'}</div>
-            <div>Days Until Maturity: {formData.daysUntilMaturity || 'Not set'}</div>
-            <div>Wallet: {connectedWallet ? 'Connected' : 'Not connected'}</div>
-          </div>
         </div>
       </div>
     </div>

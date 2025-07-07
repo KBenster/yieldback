@@ -1,4 +1,3 @@
-// lib.rs
 #![no_std]
 
 mod test;
@@ -57,21 +56,18 @@ pub enum Error {
 
 #[contracttype]
 pub struct SponsorBondConfig {
-    pub sponsor: Address,           // Sponsor creating the position
-    // pub treasury: Address,          // Optional treasury for fees
-    // pub bond_token: Address,
     pub base_asset: Address,        // Base asset (USDC)
     pub blend_pool: Address,        // Blend pool address
     pub blend_token: Address,       // BLND token address
+    pub bond_token: Address,        // Bond token
     pub bond_duration: u64,         // Duration in seconds
-    pub deposit_amount: i128,       // Exact amount this position needs from user
     pub coupon_amount: i128,        // Exact coupon amount sponsor guarantees
+    pub deposit_amount: i128,       // Exact amount this position needs from user
+    pub sponsor: Address,           // Sponsor creating the position
 }
 
 #[contractclient(name = "BlendPoolClient")]
 pub trait BlendPoolInterface {
-    /// Submit requests to the pool (withdraw, supply, borrow, etc)
-    /// Based on Blend protocol: submit(from, spender, to, requests)
     fn submit(
         env: Env,
         from: Address,
@@ -80,10 +76,8 @@ pub trait BlendPoolInterface {
         requests: Vec<(Address, i128, u32)>  // (asset_address, amount, request_type)
     );
 
-    /// Get user's balance/position in the pool for a specific asset
     fn get_user_balance(env: Env, user: Address, asset: Address) -> i128;
 
-    /// Get pool reserves for an asset
     fn get_reserve(env: Env, asset: Address) -> i128;
 }
 // BLEND PROTOCOL REQUEST TYPE CONSTANTS
@@ -92,19 +86,14 @@ pub const REQUEST_TYPE_WITHDRAW: u32 = 1;
 pub const REQUEST_TYPE_BORROW: u32 = 2;
 pub const REQUEST_TYPE_REPAY: u32 = 3;
 pub trait BondWrapperTrait {
-    /// Sponsor creates and funds the bond position (immediately active)
     fn create_position(env: Env, config: SponsorBondConfig, coupon_funding: i128);
 
-    /// User takes the entire bond position
     fn deposit(env: Env, user: Address, amount: i128);
 
-    /// Redeem bond tokens at maturity
     fn redeem(env: Env, user: Address) -> i128;
 
-    /// Sponsor functions
     fn add_coupon_funding(env: Env, sponsor: Address, amount: i128);
 
-    /// View functions
     fn get_bond_info(env: Env) -> BondInfo;
     fn get_user_position(env: Env, user: Address) -> UserPosition;
     fn get_bond_token_address(env: Env) -> Address;
@@ -157,20 +146,16 @@ impl BondWrapperTrait for BondWrapper {
             panic_with_error!(&env, Error::InsufficientCouponFunds);
         }
 
-        // Use the provided bond token address (no creation needed)
-        //let bond_token_address = config.bond_token.clone();
-
         // Transfer coupon funding from sponsor
         let base_asset_client = TokenClient::new(&env, &config.base_asset);
         base_asset_client.transfer(&config.sponsor, &env.current_contract_address(), &coupon_funding);
 
         // Store configuration
         env.storage().persistent().set(&DataKey::Sponsor, &config.sponsor);
-        //env.storage().persistent().set(&DataKey::Treasury, &config.treasury);
-        //env.storage().persistent().set(&DataKey::BondToken, &bond_token_address);
         env.storage().persistent().set(&DataKey::BaseAsset, &config.base_asset);
         env.storage().persistent().set(&DataKey::BlendPool, &config.blend_pool);
         env.storage().persistent().set(&DataKey::BlendToken, &config.blend_token);
+        env.storage().persistent().set(&DataKey::BondToken, &config.bond_token);
 
         // Store bond parameters
         env.storage().persistent().set(&DataKey::MaturityTimestamp, &maturity);

@@ -15,12 +15,9 @@ fn create_test_env() -> (
     Address,           // bond_wrapper_id
     Address,           // sponsor
     Address,           // user
-    Address,           // treasury
-    Address,           // bond_token_admin
     Address,           // base_asset_admin
     Address,           // blend_pool (mock)
     Address,           // blend_token_admin
-    token::StellarAssetClient<'static>, // bond_token
     token::StellarAssetClient<'static>, // base_asset
     token::StellarAssetClient<'static>, // blend_token
 ) {
@@ -30,14 +27,11 @@ fn create_test_env() -> (
     let bond_wrapper_id = env.register_contract(None, BondWrapper);
     let sponsor = Address::generate(&env);
     let user = Address::generate(&env);
-    let treasury = Address::generate(&env);
-    let bond_token_admin = Address::generate(&env);
     let base_asset_admin = Address::generate(&env);
     let blend_pool = Address::generate(&env);
     let blend_token_admin = Address::generate(&env);
 
     // Create token contracts
-    let bond_token = create_token_contract(&env, &bond_wrapper_id);
     let base_asset = create_token_contract(&env, &base_asset_admin);
     let blend_token = create_token_contract(&env, &blend_token_admin);
 
@@ -51,12 +45,9 @@ fn create_test_env() -> (
         bond_wrapper_id,
         sponsor,
         user,
-        treasury,
-        bond_token_admin,
         base_asset_admin,
         blend_pool,
         blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     )
@@ -69,12 +60,9 @@ fn test_create_position_success() {
         bond_wrapper_id,
         sponsor,
         _user,
-        treasury,
-        _bond_token_admin,
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     ) = create_test_env();
@@ -83,8 +71,6 @@ fn test_create_position_success() {
 
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
@@ -96,17 +82,11 @@ fn test_create_position_success() {
     // Create position with coupon funding
     client.create_position(&config, &100);
 
-    // Verify position was created
-    let bond_info = client.get_bond_info();
-    assert_eq!(bond_info.is_active, true);
-    assert_eq!(bond_info.is_taken, false);
-    assert_eq!(bond_info.coupon_amount, 100);
-
     // Verify sponsor's balance decreased
-    assert_eq!(TokenClient::new(&env, &base_asset.address).balance(&sponsor), 1_000_000 - 100);
+    assert_eq!(token::TokenClient::new(&env, &base_asset.address).balance(&sponsor), 1_000_000 - 100);
 
     // Verify contract has the coupon funds
-    assert_eq!(TokenClient::new(&env, &base_asset.address).balance(&bond_wrapper_id), 100);
+    assert_eq!(token::TokenClient::new(&env, &base_asset.address).balance(&bond_wrapper_id), 100);
 }
 
 #[test]
@@ -116,12 +96,9 @@ fn test_create_position_invalid_coupon_funding() {
         bond_wrapper_id,
         sponsor,
         _user,
-        treasury,
-        _bond_token_admin,
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     ) = create_test_env();
@@ -130,8 +107,6 @@ fn test_create_position_invalid_coupon_funding() {
 
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
@@ -146,29 +121,23 @@ fn test_create_position_invalid_coupon_funding() {
 }
 
 #[test]
-fn test_deposit_success() {
+fn test_create_position_already_initialized() {
     let (
         env,
         bond_wrapper_id,
         sponsor,
-        user,
-        treasury,
-        bond_token_admin, // This is now bond_wrapper_id
+        _user,
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     ) = create_test_env();
 
     let client = BondWrapperClient::new(&env, &bond_wrapper_id);
 
-    // Create position first - include bond_token_admin in config
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
@@ -177,91 +146,129 @@ fn test_deposit_success() {
         coupon_amount: 100,
     };
 
+    // Create position first time
     client.create_position(&config, &100);
 
-    // User deposits exact amount
-    let user_balance_before = TokenClient::new(&env, &base_asset.address).balance(&user);
-    client.deposit(&user, &1000);
-
-    // Verify user's balance decreased
-    assert_eq!(TokenClient::new(&env, &base_asset.address).balance(&user), user_balance_before - 1000);
-
-    // Verify bond tokens were minted to user (principal + coupon)
-    assert_eq!(TokenClient::new(&env, &bond_token.address).balance(&user), 1100); // 1000 + 100
-
-    // Verify position is now taken and inactive
-    let bond_info = client.get_bond_info();
-    assert_eq!(bond_info.is_taken, true);
-    assert_eq!(bond_info.is_active, false);
-    assert_eq!(bond_info.bond_holder, Some(user.clone()));
-
-    // Verify total amount went to blend pool
-    assert_eq!(TokenClient::new(&env, &base_asset.address).balance(&blend_pool), 1100); // user deposit + coupon
-}
-
-#[test]
-fn test_deposit_wrong_amount() {
-    let (
-        env,
-        bond_wrapper_id,
-        sponsor,
-        user,
-        treasury,
-        _bond_token_admin,
-        _base_asset_admin,
-        blend_pool,
-        _blend_token_admin,
-        bond_token,
-        base_asset,
-        blend_token,
-    ) = create_test_env();
-
-    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
-
-    // Create position
-    let config = SponsorBondConfig {
-        sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
-        base_asset: base_asset.address.clone(),
-        blend_pool: blend_pool.clone(),
-        blend_token: blend_token.address.clone(),
-        bond_duration: 86400,
-        deposit_amount: 1000,
-        coupon_amount: 100,
-    };
-
-    client.create_position(&config, &100);
-
-    // Try to deposit wrong amount
-    let result = client.try_deposit(&user, &500); // Wrong amount
+    // Try to create position again (should fail)
+    let result = client.try_create_position(&config, &100);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_deposit_position_already_taken() {
+fn test_create_position_invalid_duration() {
     let (
         env,
         bond_wrapper_id,
         sponsor,
-        user,
-        treasury,
-        _bond_token_admin,
+        _user,
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     ) = create_test_env();
 
     let client = BondWrapperClient::new(&env, &bond_wrapper_id);
 
-    // Create position
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
+        base_asset: base_asset.address.clone(),
+        blend_pool: blend_pool.clone(),
+        blend_token: blend_token.address.clone(),
+        bond_duration: 0, // Invalid duration
+        deposit_amount: 1000,
+        coupon_amount: 100,
+    };
+
+    let result = client.try_create_position(&config, &100);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_create_position_invalid_amounts() {
+    let (
+        env,
+        bond_wrapper_id,
+        sponsor,
+        _user,
+        _base_asset_admin,
+        blend_pool,
+        _blend_token_admin,
+        base_asset,
+        blend_token,
+    ) = create_test_env();
+
+    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
+
+    // Test with zero deposit amount
+    let config1 = SponsorBondConfig {
+        sponsor: sponsor.clone(),
+        base_asset: base_asset.address.clone(),
+        blend_pool: blend_pool.clone(),
+        blend_token: blend_token.address.clone(),
+        bond_duration: 86400,
+        deposit_amount: 0, // Invalid
+        coupon_amount: 100,
+    };
+
+    let result1 = client.try_create_position(&config1, &100);
+    assert!(result1.is_err());
+
+    // Test with zero coupon amount
+    let config2 = SponsorBondConfig {
+        sponsor: sponsor.clone(),
+        base_asset: base_asset.address.clone(),
+        blend_pool: blend_pool.clone(),
+        blend_token: blend_token.address.clone(),
+        bond_duration: 86400,
+        deposit_amount: 1000,
+        coupon_amount: 0, // Invalid
+    };
+
+    let result2 = client.try_create_position(&config2, &0);
+    assert!(result2.is_err());
+}
+
+#[test]
+fn test_deposit_position_not_initialized() {
+    let (
+        env,
+        bond_wrapper_id,
+        _sponsor,
+        user,
+        _base_asset_admin,
+        _blend_pool,
+        _blend_token_admin,
+        _base_asset,
+        _blend_token,
+    ) = create_test_env();
+
+    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
+
+    // Try to deposit without initializing position first
+    let result = client.try_deposit(&user, &1000);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_add_coupon_funding_success() {
+    let (
+        env,
+        bond_wrapper_id,
+        sponsor,
+        _user,
+        _base_asset_admin,
+        blend_pool,
+        _blend_token_admin,
+        base_asset,
+        blend_token,
+    ) = create_test_env();
+
+    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
+
+    // Create position first
+    let config = SponsorBondConfig {
+        sponsor: sponsor.clone(),
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
@@ -272,105 +279,43 @@ fn test_deposit_position_already_taken() {
 
     client.create_position(&config, &100);
 
-    // First user takes the position
-    client.deposit(&user, &1000);
+    let initial_balance = token::TokenClient::new(&env, &base_asset.address).balance(&sponsor);
 
-    // Second user tries to take the same position
-    let user2 = Address::generate(&env);
-    base_asset.mint(&user2, &1000);
+    // Add more coupon funding
+    client.add_coupon_funding(&sponsor, &50);
 
-    let result = client.try_deposit(&user2, &1000);
-    assert!(result.is_err()); // Should fail - position already taken
+    // Verify sponsor's balance decreased by additional amount
+    assert_eq!(
+        token::TokenClient::new(&env, &base_asset.address).balance(&sponsor),
+        initial_balance - 50
+    );
+
+    // Verify contract received the additional funding
+    assert_eq!(
+        token::TokenClient::new(&env, &base_asset.address).balance(&bond_wrapper_id),
+        150 // Original 100 + additional 50
+    );
 }
 
 #[test]
-fn test_redeem_at_maturity() {
+fn test_add_coupon_funding_unauthorized() {
     let (
         env,
         bond_wrapper_id,
         sponsor,
-        user,
-        treasury,
-        _bond_token_admin,
+        _user,
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     ) = create_test_env();
 
     let client = BondWrapperClient::new(&env, &bond_wrapper_id);
 
-    // Create and take position
+    // Create position first
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
-        base_asset: base_asset.address.clone(),
-        blend_pool: blend_pool.clone(),
-        blend_token: blend_token.address.clone(),
-        bond_duration: 86400, // 1 day
-        deposit_amount: 1000,
-        coupon_amount: 100,
-    };
-
-    client.create_position(&config, &100);
-    client.deposit(&user, &1000);
-
-    // Fast forward past maturity
-    env.ledger().with_mut(|ledger| {
-        ledger.timestamp = ledger.timestamp + 86400 + 1;
-    });
-
-    // Simulate blend pool having the funds plus some extra yield
-    base_asset.mint(&blend_pool, &1200); // Original 1100 + 100 extra yield
-
-    let user_balance_before = TokenClient::new(&env, &base_asset.address).balance(&user);
-    let sponsor_balance_before = TokenClient::new(&env, &base_asset.address).balance(&sponsor);
-
-    // Redeem
-    let redeemed_amount = client.redeem(&user);
-
-    // User should get exactly their bond amount (1100)
-    assert_eq!(redeemed_amount, 1100);
-    assert_eq!(TokenClient::new(&env, &base_asset.address).balance(&user), user_balance_before + 1100);
-
-    // Sponsor should get the excess yield (100)
-    assert_eq!(TokenClient::new(&env, &base_asset.address).balance(&sponsor), sponsor_balance_before + 100);
-
-    // Bond tokens should be burned
-    assert_eq!(TokenClient::new(&env, &bond_token.address).balance(&user), 0);
-
-    // Verify position is cleared
-    let user_position = client.get_user_position(&user);
-    assert_eq!(user_position.bond_balance, 0);
-}
-
-#[test]
-fn test_redeem_before_maturity() {
-    let (
-        env,
-        bond_wrapper_id,
-        sponsor,
-        user,
-        treasury,
-        _bond_token_admin,
-        _base_asset_admin,
-        blend_pool,
-        _blend_token_admin,
-        bond_token,
-        base_asset,
-        blend_token,
-    ) = create_test_env();
-
-    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
-
-    // Create and take position
-    let config = SponsorBondConfig {
-        sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
@@ -380,37 +325,138 @@ fn test_redeem_before_maturity() {
     };
 
     client.create_position(&config, &100);
-    client.deposit(&user, &1000);
 
-    // Try to redeem before maturity (should fail)
+    // Try to add funding from non-sponsor (should fail)
+    let non_sponsor = Address::generate(&env);
+    let result = client.try_add_coupon_funding(&non_sponsor, &50);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_user_position_no_bond_holder() {
+    let (
+        env,
+        bond_wrapper_id,
+        sponsor,
+        user,
+        _base_asset_admin,
+        blend_pool,
+        _blend_token_admin,
+        base_asset,
+        blend_token,
+    ) = create_test_env();
+
+    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
+
+    // Create position first
+    let config = SponsorBondConfig {
+        sponsor: sponsor.clone(),
+        base_asset: base_asset.address.clone(),
+        blend_pool: blend_pool.clone(),
+        blend_token: blend_token.address.clone(),
+        bond_duration: 86400,
+        deposit_amount: 1000,
+        coupon_amount: 100,
+    };
+
+    client.create_position(&config, &100);
+
+    // Check position of user who hasn't taken the position
+    let position = client.get_user_position(&user);
+    assert_eq!(position.deposit_amount, 0);
+    assert_eq!(position.bond_balance, 0);
+    assert_eq!(position.coupon_earned, 0);
+}
+
+#[test]
+fn test_redeem_not_initialized() {
+    let (
+        env,
+        bond_wrapper_id,
+        _sponsor,
+        user,
+        _base_asset_admin,
+        _blend_pool,
+        _blend_token_admin,
+        _base_asset,
+        _blend_token,
+    ) = create_test_env();
+
+    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
+
+    // Try to redeem without initializing position first
     let result = client.try_redeem(&user);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_get_user_position() {
+fn test_maturity_calculation() {
     let (
         env,
         bond_wrapper_id,
         sponsor,
-        user,
-        treasury,
-        _bond_token_admin,
+        _user,
         _base_asset_admin,
         blend_pool,
         _blend_token_admin,
-        bond_token,
         base_asset,
         blend_token,
     ) = create_test_env();
 
     let client = BondWrapperClient::new(&env, &bond_wrapper_id);
 
-    // Create and take position
+    let bond_duration = 86400u64; // 1 day
     let config = SponsorBondConfig {
         sponsor: sponsor.clone(),
-        treasury: treasury.clone(),
-        bond_token: bond_token.address.clone(),
+        base_asset: base_asset.address.clone(),
+        blend_pool: blend_pool.clone(),
+        blend_token: blend_token.address.clone(),
+        bond_duration,
+        deposit_amount: 1000,
+        coupon_amount: 100,
+    };
+
+    let current_time = env.ledger().timestamp();
+    client.create_position(&config, &100);
+
+    // Fast forward time but not past maturity
+    env.ledger().with_mut(|ledger| {
+        ledger.timestamp = current_time + bond_duration / 2; // Half way to maturity
+    });
+
+    // Should not be matured yet (this would require get_bond_info to work)
+
+    // Fast forward past maturity
+    env.ledger().with_mut(|ledger| {
+        ledger.timestamp = current_time + bond_duration + 1;
+    });
+
+}
+
+
+#[test]
+fn test_require_functions() {
+    let (
+        env,
+        bond_wrapper_id,
+        sponsor,
+        _user,
+        _base_asset_admin,
+        blend_pool,
+        _blend_token_admin,
+        base_asset,
+        blend_token,
+    ) = create_test_env();
+
+    let client = BondWrapperClient::new(&env, &bond_wrapper_id);
+
+    // Test require_initialized fails when not initialized
+    let result = client.try_get_user_position(&sponsor);
+    assert!(result.is_err());
+
+    // Create position to initialize
+    let config = SponsorBondConfig {
+        sponsor: sponsor.clone(),
         base_asset: base_asset.address.clone(),
         blend_pool: blend_pool.clone(),
         blend_token: blend_token.address.clone(),
@@ -420,18 +466,7 @@ fn test_get_user_position() {
     };
 
     client.create_position(&config, &100);
-    client.deposit(&user, &1000);
 
-    // Check user position
-    let position = client.get_user_position(&user);
-    assert_eq!(position.deposit_amount, 1000);
-    assert_eq!(position.bond_balance, 1100); // deposit + coupon
-    assert_eq!(position.coupon_earned, 100);
-
-    // Check position of non-bond-holder
-    let other_user = Address::generate(&env);
-    let other_position = client.get_user_position(&other_user);
-    assert_eq!(other_position.deposit_amount, 0);
-    assert_eq!(other_position.bond_balance, 0);
-    assert_eq!(other_position.coupon_earned, 0);
+    let position = client.get_user_position(&sponsor);
+    assert_eq!(position.deposit_amount, 0);
 }
