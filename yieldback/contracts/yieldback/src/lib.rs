@@ -3,7 +3,7 @@
 
 mod test;
 
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, token, Address, Env, log, panic_with_error, vec, Vec, contractclient};
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror, token, Address, Env, log, panic_with_error, vec, Vec, contractclient, BytesN, Bytes};
 
 use token::{StellarAssetClient, TokenClient};
 
@@ -50,17 +50,16 @@ pub enum Error {
     BondMatured = 5,
     BondNotMatured = 6,
     InsufficientBalance = 7,
-    PositionNotActive = 9,
-    InsufficientCouponFunds = 10,
-    PositionAlreadyTaken = 11,
-    NotBondHolder = 12,
+    InsufficientCouponFunds = 8,
+    PositionAlreadyTaken = 9,
+    NotBondHolder = 10,
 }
 
 #[contracttype]
 pub struct SponsorBondConfig {
     pub sponsor: Address,           // Sponsor creating the position
     pub treasury: Address,          // Optional treasury for fees
-    pub bond_token: Address,        // Bond token to mint
+    pub bond_token: Address,
     pub base_asset: Address,        // Base asset (USDC)
     pub blend_pool: Address,        // Blend pool address
     pub blend_token: Address,       // BLND token address
@@ -108,6 +107,7 @@ pub trait BondWrapperTrait {
     /// View functions
     fn get_bond_info(env: Env) -> BondInfo;
     fn get_user_position(env: Env, user: Address) -> UserPosition;
+    fn get_bond_token_address(env: Env) -> Address;
 }
 
 #[contracttype]
@@ -118,8 +118,8 @@ pub struct BondInfo {
     pub coupon_amount: i128,            // sponsor's coupon amount
     pub maturity_timestamp: u64,
     pub is_matured: bool,
-    pub is_active: bool,
     pub is_taken: bool,                 // Whether position has been claimed
+    pub bond_token_address: Address,    // Address of the created bond token
 }
 
 #[contracttype]
@@ -157,6 +157,9 @@ impl BondWrapperTrait for BondWrapper {
             panic_with_error!(&env, Error::InsufficientCouponFunds);
         }
 
+        // Use the provided bond token address (no creation needed)
+        let bond_token_address = config.bond_token.clone();
+
         // Transfer coupon funding from sponsor
         let base_asset_client = TokenClient::new(&env, &config.base_asset);
         base_asset_client.transfer(&config.sponsor, &env.current_contract_address(), &coupon_funding);
@@ -164,7 +167,7 @@ impl BondWrapperTrait for BondWrapper {
         // Store configuration
         env.storage().persistent().set(&DataKey::Sponsor, &config.sponsor);
         env.storage().persistent().set(&DataKey::Treasury, &config.treasury);
-        env.storage().persistent().set(&DataKey::BondToken, &config.bond_token);
+        env.storage().persistent().set(&DataKey::BondToken, &bond_token_address);
         env.storage().persistent().set(&DataKey::BaseAsset, &config.base_asset);
         env.storage().persistent().set(&DataKey::BlendPool, &config.blend_pool);
         env.storage().persistent().set(&DataKey::BlendToken, &config.blend_token);
@@ -180,7 +183,6 @@ impl BondWrapperTrait for BondWrapper {
         env.storage().persistent().set(&DataKey::UserDeposited, &0i128);
         env.storage().persistent().set(&DataKey::CouponFundsDeposited, &coupon_funding);
         env.storage().persistent().set(&DataKey::IsMatured, &false);
-        env.storage().persistent().set(&DataKey::IsActive, &true); // ACTIVE immediately!
         env.storage().persistent().set(&DataKey::IsTaken, &false);
         env.storage().persistent().set(&DataKey::UserBonds, &0i128);
     }
@@ -191,11 +193,6 @@ impl BondWrapperTrait for BondWrapper {
 
         if Self::is_matured(&env) {
             panic_with_error!(&env, Error::BondMatured);
-        }
-
-        let is_active: bool = env.storage().persistent().get(&DataKey::IsActive).unwrap_or(false);
-        if !is_active {
-            panic_with_error!(&env, Error::PositionNotActive);
         }
 
         let is_taken: bool = env.storage().persistent().get(&DataKey::IsTaken).unwrap_or(false);
@@ -212,19 +209,21 @@ impl BondWrapperTrait for BondWrapper {
         let bond_token: Address = env.storage().persistent().get(&DataKey::BondToken).unwrap();
         let blend_pool: Address = env.storage().persistent().get(&DataKey::BlendPool).unwrap();
 
-        // Transfer base asset from user
+        // Transfer base asset from user to contract
         let base_client = TokenClient::new(&env, &base_asset);
         base_client.transfer(&user, &env.current_contract_address(), &amount);
 
         // Get sponsor's coupon funds
         let coupon_amount: i128 = env.storage().persistent().get(&DataKey::CouponAmount).unwrap();
 
-        // Send total to blend pool
+        // Send total (user deposit + sponsor coupon) to blend pool
         let total_to_blend = amount + coupon_amount;
         base_client.transfer(&env.current_contract_address(), &blend_pool, &total_to_blend);
 
         // Mint bond tokens representing user's total claim (principal + coupon)
         let user_claim = amount + coupon_amount;
+
+        // Use StellarAssetClient for minting (since we're using a pre-deployed Stellar token)
         let bond_admin_client = StellarAssetClient::new(&env, &bond_token);
         bond_admin_client.mint(&user, &user_claim);
 
@@ -357,6 +356,7 @@ impl BondWrapperTrait for BondWrapper {
 
         let bond_holder: Option<Address> = env.storage().persistent().get(&DataKey::BondHolder);
         let coupon_amount: i128 = env.storage().persistent().get(&DataKey::CouponAmount).unwrap_or(0);
+        let bond_token_address: Address = env.storage().persistent().get(&DataKey::BondToken).unwrap();
 
         BondInfo {
             total_bonds_issued: env.storage().persistent().get(&DataKey::TotalBondsIssued).unwrap_or(0),
@@ -365,8 +365,8 @@ impl BondWrapperTrait for BondWrapper {
             coupon_amount,
             maturity_timestamp: env.storage().persistent().get(&DataKey::MaturityTimestamp).unwrap(),
             is_matured: Self::is_matured(&env),
-            is_active: env.storage().persistent().get(&DataKey::IsActive).unwrap_or(false),
             is_taken: env.storage().persistent().get(&DataKey::IsTaken).unwrap_or(false),
+            bond_token_address,
         }
     }
 
@@ -397,6 +397,12 @@ impl BondWrapperTrait for BondWrapper {
             coupon_earned: 0,
         }
     }
+
+    fn get_bond_token_address(env: Env) -> Address {
+        Self::require_initialized(&env);
+        env.storage().persistent().get(&DataKey::BondToken).unwrap()
+    }
+
 }
 
 impl BondWrapper {

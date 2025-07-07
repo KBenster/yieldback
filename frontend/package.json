@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@stellar/stellar-sdk": "^13.3.0",
     "@creit.tech/stellar-wallets-kit": "^1.0.0",
+    "@stellar/stellar-sdk": "^13.3.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
