@@ -100,7 +100,7 @@ export default function SponsorPositionCreation() {
       const account = await server.getAccount(connectedWallet.address);
       
       // Your contract address (already deployed instance)
-      const contractAddress = 'CBQ76YMMZ5VWCRY5PZEZRS4QSMY43WYYXHR6BPS6YNBDCA7IOQ223AO4';
+      const contractAddress = 'CD5CD56U3M3FW32BXJYBRRL2X3X2FWKMCCGZQKMH7WCXBTOTSCPYEWDZ';
       
       // Convert form data to proper values
       const bondDurationSeconds = parseInt(formData.daysUntilMaturity) * 24 * 60 * 60; // Convert days to seconds
@@ -110,7 +110,7 @@ export default function SponsorPositionCreation() {
       // Create the sponsor bond config as a native JS object
       const sponsorBondConfig = {
         sponsor: connectedWallet.address,
-        treasury: BLEND_TESTNET_CONFIG.TREASURY || null,
+        //treasury: BLEND_TESTNET_CONFIG.TREASURY || null,
         base_asset: BLEND_TESTNET_CONFIG.USDC_ASSET,
         blend_pool: BLEND_TESTNET_CONFIG.BLEND_POOL,
         blend_token: BLEND_TESTNET_CONFIG.BLND_TOKEN,

@@ -58,8 +58,8 @@ pub enum Error {
 #[contracttype]
 pub struct SponsorBondConfig {
     pub sponsor: Address,           // Sponsor creating the position
-    pub treasury: Address,          // Optional treasury for fees
-    pub bond_token: Address,
+    // pub treasury: Address,          // Optional treasury for fees
+    // pub bond_token: Address,
     pub base_asset: Address,        // Base asset (USDC)
     pub blend_pool: Address,        // Blend pool address
     pub blend_token: Address,       // BLND token address
@@ -158,7 +158,7 @@ impl BondWrapperTrait for BondWrapper {
         }
 
         // Use the provided bond token address (no creation needed)
-        let bond_token_address = config.bond_token.clone();
+        //let bond_token_address = config.bond_token.clone();
 
         // Transfer coupon funding from sponsor
         let base_asset_client = TokenClient::new(&env, &config.base_asset);
@@ -166,8 +166,8 @@ impl BondWrapperTrait for BondWrapper {
 
         // Store configuration
         env.storage().persistent().set(&DataKey::Sponsor, &config.sponsor);
-        env.storage().persistent().set(&DataKey::Treasury, &config.treasury);
-        env.storage().persistent().set(&DataKey::BondToken, &bond_token_address);
+        //env.storage().persistent().set(&DataKey::Treasury, &config.treasury);
+        //env.storage().persistent().set(&DataKey::BondToken, &bond_token_address);
         env.storage().persistent().set(&DataKey::BaseAsset, &config.base_asset);
         env.storage().persistent().set(&DataKey::BlendPool, &config.blend_pool);
         env.storage().persistent().set(&DataKey::BlendToken, &config.blend_token);
@@ -224,8 +224,8 @@ impl BondWrapperTrait for BondWrapper {
         let user_claim = amount + coupon_amount;
 
         // Use StellarAssetClient for minting (since we're using a pre-deployed Stellar token)
-        let bond_admin_client = StellarAssetClient::new(&env, &bond_token);
-        bond_admin_client.mint(&user, &user_claim);
+        //let bond_admin_client = StellarAssetClient::new(&env, &bond_token);
+        //bond_admin_client.mint(&user, &user_claim);
 
         // Update storage - mark position as taken and close it
         env.storage().persistent().set(&DataKey::TotalBondsIssued, &user_claim);
