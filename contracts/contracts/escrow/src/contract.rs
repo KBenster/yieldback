@@ -10,28 +10,68 @@ use crate::errors::*;
 #[contract]
 pub struct FixedIncomeContract;
 
-// Define the share token client interface
-#[contractclient(name = "ShareTokenClient")]
-pub trait ShareTokenInterface {
+// Define the coupon token client interface
+#[contractclient(name = "CouponTokenClient")]
+pub trait CouponTokenInterface {
     fn __constructor(
         env: Env,
         admin: Address,
+        decimal: u32,
         name: String,
         symbol: String,
-        decimals: u32,
         escrow_contract: Address,
         maturity_date: u64,
     );
-    fn mint_coupon(env: Env, to: Address, amount: i128);
-    fn mint_principal(env: Env, to: Address, amount: i128);
-    fn burn_coupon(env: Env, from: Address, amount: i128);
-    fn burn_principal(env: Env, from: Address, amount: i128);
+    fn allowance(env: Env, from: Address, spender: Address) -> i128;
+    fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32);
     fn balance(env: Env, id: Address) -> i128;
-    fn coupon_balance(env: Env, id: Address) -> i128;
-    fn principal_balance(env: Env, id: Address) -> i128;
+    fn transfer(env: Env, from: Address, to: Address, amount: i128);
+    fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128);
+    fn burn(env: Env, from: Address, amount: i128);
+    fn burn_from(env: Env, spender: Address, from: Address, amount: i128);
+    fn decimals(env: Env) -> u32;
+    fn name(env: Env) -> String;
+    fn symbol(env: Env) -> String;
     fn total_supply(env: Env) -> i128;
-    fn coupon_supply(env: Env) -> i128;
-    fn principal_supply(env: Env) -> i128;
+    fn mint(env: Env, to: Address, amount: i128);
+    fn set_admin(env: Env, new_admin: Address);
+    fn admin(env: Env) -> Address;
+    fn authorized(env: Env, id: Address) -> bool;
+    fn set_authorized(env: Env, id: Address, authorize: bool);
+    fn get_escrow_contract(env: Env) -> Address;
+    fn get_maturity_date(env: Env) -> u64;
+}
+
+// Define the principal token client interface
+#[contractclient(name = "PrincipalTokenClient")]
+pub trait PrincipalTokenInterface {
+    fn __constructor(
+        env: Env,
+        admin: Address,
+        decimal: u32,
+        name: String,
+        symbol: String,
+        escrow_contract: Address,
+        maturity_date: u64,
+    );
+    fn allowance(env: Env, from: Address, spender: Address) -> i128;
+    fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32);
+    fn balance(env: Env, id: Address) -> i128;
+    fn transfer(env: Env, from: Address, to: Address, amount: i128);
+    fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128);
+    fn burn(env: Env, from: Address, amount: i128);
+    fn burn_from(env: Env, spender: Address, from: Address, amount: i128);
+    fn decimals(env: Env) -> u32;
+    fn name(env: Env) -> String;
+    fn symbol(env: Env) -> String;
+    fn total_supply(env: Env) -> i128;
+    fn mint(env: Env, to: Address, amount: i128);
+    fn set_admin(env: Env, new_admin: Address);
+    fn admin(env: Env) -> Address;
+    fn authorized(env: Env, id: Address) -> bool;
+    fn set_authorized(env: Env, id: Address, authorize: bool);
+    fn get_escrow_contract(env: Env) -> Address;
+    fn get_maturity_date(env: Env) -> u64;
 }
 
 // Define the trait (interface) for the contract
@@ -58,6 +98,12 @@ pub trait FixedIncome {
 
     /// Get token address
     fn get_token(env: Env) -> Address;
+
+    /// Get coupon token address
+    fn get_coupon_token(env: Env) -> Address;
+
+    /// Get principal token address
+    fn get_principal_token(env: Env) -> Address;
 
     /// Get maturity date
     fn get_maturity(env: Env) -> u64;
@@ -105,19 +151,33 @@ impl FixedIncomeContract {
             panic_with_error!(&env, &EscrowError::MaturityInPast);
         }
 
-        // Hardcoded share token WASM hash
-        let share_token_wasm_hash = BytesN::from_array(&env, &SHARE_TOKEN_WASM_HASH);
-
-        // Deploy share token contract with constructor arguments
-        let salt = BytesN::from_array(&env, &DEFAULT_SALT);
-        let share_token_address = env.deployer().with_current_contract(salt)
+        // Deploy coupon token contract
+        let coupon_token_wasm_hash = BytesN::from_array(&env, &COUPON_TOKEN_WASM_HASH);
+        let coupon_salt = BytesN::from_array(&env, &COUPON_TOKEN_SALT);
+        let coupon_token_address = env.deployer().with_current_contract(coupon_salt)
             .deploy_v2(
-                share_token_wasm_hash,
+                coupon_token_wasm_hash,
                 (
                     env.current_contract_address(), // admin (escrow contract)
-                    String::from_str(&env, "Escrow contract share token"),
-                    String::from_str(&env, "ECST"),
-                    7u32, // decimals - adjust as needed
+                    7u32, // decimals
+                    String::from_str(&env, "Escrow Coupon Token"),
+                    String::from_str(&env, "ECT"),
+                    env.current_contract_address(), // escrow contract address
+                    maturity,
+                )
+            );
+
+        // Deploy principal token contract
+        let principal_token_wasm_hash = BytesN::from_array(&env, &PRINCIPAL_TOKEN_WASM_HASH);
+        let principal_salt = BytesN::from_array(&env, &PRINCIPAL_TOKEN_SALT);
+        let principal_token_address = env.deployer().with_current_contract(principal_salt)
+            .deploy_v2(
+                principal_token_wasm_hash,
+                (
+                    env.current_contract_address(), // admin (escrow contract)
+                    7u32, // decimals
+                    String::from_str(&env, "Escrow Principal Token"),
+                    String::from_str(&env, "EPT"),
                     env.current_contract_address(), // escrow contract address
                     maturity,
                 )
@@ -126,7 +186,8 @@ impl FixedIncomeContract {
         env.storage().instance().set(&ADMIN, &admin);
         env.storage().instance().set(&TOKEN, &token_address);
         env.storage().instance().set(&BLEND_POOL, &blend_pool_address);
-        env.storage().instance().set(&SHARE_TOKEN, &share_token_address);
+        env.storage().instance().set(&COUPON_TOKEN, &coupon_token_address);
+        env.storage().instance().set(&PRINCIPAL_TOKEN, &principal_token_address);
         env.storage().instance().set(&MATURITY, &maturity);
         env.storage().instance().set(&COUPON_AMOUNT, &coupon_amount);
         env.storage().instance().set(&PRINCIPAL_AMOUNT, &principal_amount);
@@ -157,9 +218,9 @@ impl FixedIncome for FixedIncomeContract {
         let token_address: Address = env.storage().instance().get(&TOKEN).unwrap();
         let token = token::Client::new(&env, &token_address);
 
-        // Get share token contract
-        let share_token_address: Address = env.storage().instance().get(&SHARE_TOKEN).unwrap();
-        let share_token = ShareTokenClient::new(&env, &share_token_address);
+        // Get coupon token contract
+        let coupon_token_address: Address = env.storage().instance().get(&COUPON_TOKEN).unwrap();
+        let coupon_token = CouponTokenClient::new(&env, &coupon_token_address);
 
         // Transfer tokens from user to contract
         token.transfer(&from, &env.current_contract_address(), &coupon_amount);
@@ -167,12 +228,12 @@ impl FixedIncome for FixedIncomeContract {
         // Mark coupon as deposited
         env.storage().instance().set(&COUPON_DEPOSITED, &true);
 
-        // Authorize the escrow contract to mint share tokens
+        // Authorize the escrow contract to mint coupon tokens
         env.authorize_as_current_contract(vec![
             &env,
             InvokerContractAuthEntry::Contract(SubContractInvocation {
                 context: ContractContext {
-                    contract: share_token_address.clone(),
+                    contract: coupon_token_address.clone(),
                     fn_name: Symbol::new(&env, "mint"),
                     args: (
                         from.clone(),
@@ -183,8 +244,8 @@ impl FixedIncome for FixedIncomeContract {
             }),
         ]);
 
-        // Mint coupon share tokens to the depositor (1:1 ratio with coupon amount)
-        share_token.mint_coupon(&from, &coupon_amount);
+        // Mint coupon tokens to the depositor (1:1 ratio with coupon amount)
+        coupon_token.mint(&from, &coupon_amount);
 
         // Emit event
         env.events().publish((Symbol::new(&env, "deposit"), from.clone()), coupon_amount);
@@ -207,9 +268,9 @@ impl FixedIncome for FixedIncomeContract {
         let token_address: Address = env.storage().instance().get(&TOKEN).unwrap();
         let token = token::Client::new(&env, &token_address);
 
-        // Get share token contract
-        let share_token_address: Address = env.storage().instance().get(&SHARE_TOKEN).unwrap();
-        let share_token = ShareTokenClient::new(&env, &share_token_address);
+        // Get principal token contract
+        let principal_token_address: Address = env.storage().instance().get(&PRINCIPAL_TOKEN).unwrap();
+        let principal_token = PrincipalTokenClient::new(&env, &principal_token_address);
 
         // Transfer tokens from user to contract
         token.transfer(&from, &env.current_contract_address(), &principal_amount);
@@ -222,8 +283,8 @@ impl FixedIncome for FixedIncomeContract {
             &env,
             InvokerContractAuthEntry::Contract(SubContractInvocation {
                 context: ContractContext {
-                    contract: share_token_address.clone(),
-                    fn_name: Symbol::new(&env, "mint_principal"),
+                    contract: principal_token_address.clone(),
+                    fn_name: Symbol::new(&env, "mint"),
                     args: (
                         from.clone(),
                         principal_amount,
@@ -234,7 +295,7 @@ impl FixedIncome for FixedIncomeContract {
         ]);
 
         // Mint principal tokens to the depositor (1:1 ratio with principal amount)
-        share_token.mint_principal(&from, &principal_amount);
+        principal_token.mint(&from, &principal_amount);
 
         // Emit event
         env.events().publish((Symbol::new(&env, "deposit_principal"), from.clone()), principal_amount);
@@ -392,12 +453,12 @@ impl FixedIncome for FixedIncomeContract {
             panic_with_error!(&env, &EscrowError::AmountMustBePositive);
         }
 
-        // Get share token contract
-        let share_token_address: Address = env.storage().instance().get(&SHARE_TOKEN).unwrap();
-        let share_token = ShareTokenClient::new(&env, &share_token_address);
+        // Get principal token contract
+        let principal_token_address: Address = env.storage().instance().get(&PRINCIPAL_TOKEN).unwrap();
+        let principal_token = PrincipalTokenClient::new(&env, &principal_token_address);
 
         // Check if user has sufficient principal tokens
-        let user_principal_balance = share_token.principal_balance(&from);
+        let user_principal_balance = principal_token.balance(&from);
         if user_principal_balance < principal_tokens_to_burn {
             panic_with_error!(&env, &EscrowError::InsufficientPrincipalBalance);
         }
@@ -410,7 +471,7 @@ impl FixedIncome for FixedIncomeContract {
         let total_redemption_amount = principal_amount + coupon_amount;
 
         // Calculate the proportion of tokens being redeemed
-        let principal_supply = share_token.principal_supply();
+        let principal_supply = principal_token.total_supply();
         let redemption_ratio = if principal_supply > 0 {
             (principal_tokens_to_burn as f64) / (principal_supply as f64)
         } else {
@@ -443,8 +504,8 @@ impl FixedIncome for FixedIncomeContract {
             &env,
             InvokerContractAuthEntry::Contract(SubContractInvocation {
                 context: ContractContext {
-                    contract: share_token_address.clone(),
-                    fn_name: Symbol::new(&env, "burn_principal"),
+                    contract: principal_token_address.clone(),
+                    fn_name: Symbol::new(&env, "burn"),
                     args: (
                         from.clone(),
                         principal_tokens_to_burn,
@@ -455,7 +516,7 @@ impl FixedIncome for FixedIncomeContract {
         ]);
 
         // Burn the principal tokens
-        share_token.burn_principal(&from, &principal_tokens_to_burn);
+        principal_token.burn(&from, &principal_tokens_to_burn);
 
         // 🔹 CHANGED: Transfer the total redemption amount (principal + coupon) to the user
         token.transfer(&env.current_contract_address(), &from, &amount_to_withdraw);
@@ -484,12 +545,12 @@ impl FixedIncome for FixedIncomeContract {
             panic_with_error!(&env, &EscrowError::AmountMustBePositive);
         }
 
-        // Get share token contract
-        let share_token_address: Address = env.storage().instance().get(&SHARE_TOKEN).unwrap();
-        let share_token = ShareTokenClient::new(&env, &share_token_address);
+        // Get coupon token contract
+        let coupon_token_address: Address = env.storage().instance().get(&COUPON_TOKEN).unwrap();
+        let coupon_token = CouponTokenClient::new(&env, &coupon_token_address);
 
         // Check if user has sufficient coupon tokens
-        let user_coupon_balance = share_token.coupon_balance(&from);
+        let user_coupon_balance = coupon_token.balance(&from);
         if user_coupon_balance < coupon_tokens_to_burn {
             panic_with_error!(&env, &EscrowError::InsufficientCouponBalance);
         }
@@ -521,7 +582,7 @@ impl FixedIncome for FixedIncomeContract {
         let total_excess_yield = total_available_funds - total_reserved_amount;
 
         // Calculate proportional share for the coupon holder
-        let coupon_supply = share_token.coupon_supply();
+        let coupon_supply = coupon_token.total_supply();
         if coupon_supply == 0 {
             panic_with_error!(&env, &EscrowError::NoCouponTokensInCirculation);
         }
@@ -551,8 +612,8 @@ impl FixedIncome for FixedIncomeContract {
             &env,
             InvokerContractAuthEntry::Contract(SubContractInvocation {
                 context: ContractContext {
-                    contract: share_token_address.clone(),
-                    fn_name: Symbol::new(&env, "burn_coupon"),
+                    contract: coupon_token_address.clone(),
+                    fn_name: Symbol::new(&env, "burn"),
                     args: (
                         from.clone(),
                         coupon_tokens_to_burn,
@@ -563,7 +624,7 @@ impl FixedIncome for FixedIncomeContract {
         ]);
 
         // Burn the coupon tokens
-        share_token.burn_coupon(&from, &coupon_tokens_to_burn);
+        coupon_token.burn(&from, &coupon_tokens_to_burn);
 
         // Transfer the excess yield to the coupon holder (sponsor)
         token.transfer(&env.current_contract_address(), &from, &amount_to_withdraw);
@@ -619,5 +680,13 @@ impl FixedIncome for FixedIncomeContract {
 
     fn get_principal_amount(env: Env) -> i128 {
         env.storage().instance().get(&PRINCIPAL_AMOUNT).unwrap()
+    }
+
+    fn get_coupon_token(env: Env) -> Address {
+        env.storage().instance().get(&COUPON_TOKEN).unwrap()
+    }
+
+    fn get_principal_token(env: Env) -> Address {
+        env.storage().instance().get(&PRINCIPAL_TOKEN).unwrap()
     }
 }

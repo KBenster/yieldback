@@ -146,7 +146,7 @@ pub fn read_admin(env: &Env) -> Address {
 }
 
 // Shared token implementation functions
-pub fn initialize(
+pub fn __constructor(
     env: &Env,
     admin: Address,
     decimal: u32,
@@ -155,10 +155,6 @@ pub fn initialize(
     escrow_contract: Address,
     maturity_date: u64,
 ) {
-    if env.storage().instance().has(&DataKey::Admin) {
-        panic!("already initialized");
-    }
-
     env.storage().instance().set(&DataKey::Admin, &admin);
     env.storage().instance().set(&NAME, &name);
     env.storage().instance().set(&SYMBOL, &symbol);

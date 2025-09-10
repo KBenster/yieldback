@@ -7,18 +7,6 @@ pub struct CouponToken;
 
 #[contractimpl]
 impl CouponToken {
-    pub fn initialize(
-        env: Env,
-        admin: Address,
-        decimal: u32,
-        name: String,
-        symbol: String,
-        escrow_contract: Address,
-        maturity_date: u64,
-    ) {
-        token::initialize(&env, admin, decimal, name, symbol, escrow_contract, maturity_date);
-    }
-
     pub fn allowance(env: Env, from: Address, spender: Address) -> i128 {
         token::allowance(&env, from, spender)
     }
