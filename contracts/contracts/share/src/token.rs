@@ -260,14 +260,6 @@ pub fn set_authorized(env: &Env, id: Address, authorize: bool) {
     write_authorization(env, id, authorize);
 }
 
-pub fn clawback(env: &Env, from: Address, amount: i128) {
-    check_authorized(env, read_admin(env));
-    check_nonnegative_amount(amount);
-    spend_balance(env, from, amount);
-    let total = total_supply(env);
-    env.storage().instance().set(&TOTAL_SUPPLY, &(total - amount));
-}
-
 // Custom getters for bond-specific data
 pub fn get_escrow_contract(env: &Env) -> Address {
     env.storage().instance().get(&ESCROW_CONTRACT).unwrap()

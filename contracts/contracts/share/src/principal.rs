@@ -83,10 +83,6 @@ impl PrincipalToken {
         token::set_authorized(&env, id, authorize);
     }
 
-    pub fn clawback(env: Env, from: Address, amount: i128) {
-        token::clawback(&env, from, amount);
-    }
-
     // Bond-specific functions
     pub fn get_escrow_contract(env: Env) -> Address {
         token::get_escrow_contract(&env)
