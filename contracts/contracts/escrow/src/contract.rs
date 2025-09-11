@@ -125,7 +125,7 @@ pub trait FixedIncome {
 
 #[contractimpl]
 impl FixedIncomeContract {
-    /// Initialize the contract with admin and token address
+    /// Initialize the contract
     pub fn __constructor(
         env: Env,
         admin: Address,

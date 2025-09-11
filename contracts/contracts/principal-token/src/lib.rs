@@ -1,7 +1,8 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, Env, String};
-use crate::token;
-use crate::token::{DataKey, DECIMALS, ESCROW_CONTRACT, MATURITY_DATE, NAME, SYMBOL, TOTAL_SUPPLY};
+
+mod token;
+use token::{DataKey, DECIMALS, ESCROW_CONTRACT, MATURITY_DATE, NAME, SYMBOL, TOTAL_SUPPLY};
 
 #[contract]
 pub struct PrincipalToken;

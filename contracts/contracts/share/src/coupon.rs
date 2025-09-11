@@ -1,12 +1,30 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, Env, String};
 use crate::token;
+use crate::token::{DataKey, DECIMALS, ESCROW_CONTRACT, MATURITY_DATE, NAME, SYMBOL, TOTAL_SUPPLY};
 
 #[contract]
 pub struct CouponToken;
 
 #[contractimpl]
 impl CouponToken {
+    pub fn __constructor(
+        env: Env,
+        admin: Address,
+        decimal: u32,
+        name: String,
+        symbol: String,
+        escrow_contract: Address,
+        maturity_date: u64,
+    ) {
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&NAME, &name);
+        env.storage().instance().set(&SYMBOL, &symbol);
+        env.storage().instance().set(&DECIMALS, &decimal);
+        env.storage().instance().set(&TOTAL_SUPPLY, &0i128);
+        env.storage().instance().set(&ESCROW_CONTRACT, &escrow_contract);
+        env.storage().instance().set(&MATURITY_DATE, &maturity_date);
+    }
     pub fn allowance(env: Env, from: Address, spender: Address) -> i128 {
         token::allowance(&env, from, spender)
     }
