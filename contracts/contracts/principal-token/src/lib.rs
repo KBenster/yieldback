@@ -6,7 +6,7 @@ use token::{DataKey, DECIMALS, ESCROW_CONTRACT, MATURITY_DATE, NAME, SYMBOL, TOT
 
 #[contract]
 pub struct PrincipalToken;
-
+//TODO: bring functions into token.rs, keep in lib.rs as mod
 #[contractimpl]
 impl PrincipalToken {
     pub fn __constructor(
