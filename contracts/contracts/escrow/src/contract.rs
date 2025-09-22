@@ -472,14 +472,13 @@ impl FixedIncome for FixedIncomeContract {
 
         // Calculate the proportion of tokens being redeemed
         let principal_supply = principal_token.total_supply();
-        let redemption_ratio = if principal_supply > 0 {
-            (principal_tokens_to_burn as f64) / (principal_supply as f64)
-        } else {
+        if principal_supply == 0 {
             panic_with_error!(&env, &EscrowError::NoPrincipalTokensInCirculation);
-        };
+        }
 
         // Calculate the actual amount to withdraw (proportional to tokens being burned)
-        let amount_to_withdraw = ((total_redemption_amount as f64) * redemption_ratio) as i128;
+        // Using integer arithmetic: (total_redemption_amount * principal_tokens_to_burn) / principal_supply
+        let amount_to_withdraw = (total_redemption_amount * principal_tokens_to_burn) / principal_supply;
 
         // Get token contract for underlying asset
         let token_address: Address = env.storage().instance().get(&TOKEN).unwrap();
@@ -587,8 +586,9 @@ impl FixedIncome for FixedIncomeContract {
             panic_with_error!(&env, &EscrowError::NoCouponTokensInCirculation);
         }
 
-        let redemption_ratio = (coupon_tokens_to_burn as f64) / (coupon_supply as f64);
-        let amount_to_withdraw = ((total_excess_yield as f64) * redemption_ratio) as i128;
+        // Calculate the amount to withdraw using integer arithmetic
+        // (total_excess_yield * coupon_tokens_to_burn) / coupon_supply
+        let amount_to_withdraw = (total_excess_yield * coupon_tokens_to_burn) / coupon_supply;
 
         if amount_to_withdraw <= 0 {
             panic_with_error!(&env, &EscrowError::NoYieldAvailableForRedemption);

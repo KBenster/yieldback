@@ -1,8 +1,8 @@
 import { Box, Typography, useTheme, Input } from '@mui/material';
 import type { NextPage } from 'next';
 import { useState } from 'react';
-import { useWallet } from '../contexts/wallet.tsx';
-import { Client } from '../index.ts';
+import { useWallet } from '../contexts/wallet';
+import { Client, networks } from '../index';
 
 const CreateEscrow: NextPage = () => {
   const theme = useTheme();
@@ -24,18 +24,20 @@ const CreateEscrow: NextPage = () => {
     try {
       const maturityTimestamp = Math.floor(Date.now() / 1000) + (parseInt(maturityDays) * 24 * 60 * 60);
       
-      // Using the generated bindings to deploy
       const result = await Client.deploy({
         admin,
         token_address: tokenAddress,
         blend_pool_address: blendPoolAddress,
         maturity: BigInt(maturityTimestamp),
-        coupon_amount: BigInt(parseInt(couponAmount) * 10**7), // Assuming 7 decimals
+        coupon_amount: BigInt(parseInt(couponAmount) * 10**7),
         principal_amount: BigInt(parseInt(principalAmount) * 10**7)
       }, {
-        fee: 100000,
+        ...networks.testnet,
+        rpcUrl: 'https://soroban-testnet.stellar.org',
+        allowHttp: false,
+        fee: "100000",
         timeoutInSeconds: 30,
-        wasmHash: "your_wasm_hash_here" // Replace with actual WASM hash
+        wasmHash: "c91b690eeb907251d0375722519466c879ca43f78cb717b4b5a357d8fb75a087"
       });
 
       if (result.result) {
