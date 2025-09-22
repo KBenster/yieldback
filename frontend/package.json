@@ -9,8 +9,11 @@
   },
   "dependencies": {
     "@blend-capital/blend-sdk": "^3.2.1",
+    "@creit.tech/stellar-wallets-kit": "^1.9.5",
+    "@mui/material": "^7.3.2",
     "@stellar/stellar-sdk": "^14.1.1",
     "buffer": "6.0.3",
+    "next": "^15.5.3",
     "yarn": "^1.22.22"
   },
   "devDependencies": {
