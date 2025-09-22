@@ -1,10 +1,39 @@
-import type { AppProps } from 'next/app';
-import { WalletProvider } from '../contexts/wallet';
+import '/public/fonts/dm-sans.css';
 
-export default function App({ Component, pageProps }: AppProps) {
+import CssBaseline from '@mui/material/CssBaseline';
+import { ThemeProvider } from '@mui/material/styles';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProps } from 'next/app';
+import Head from 'next/head';
+import { useState } from 'react';
+import { SettingsProvider } from '../contexts/';
+import { WalletProvider } from '../contexts/wallet';
+import DefaultLayout from '../layouts/DefaultLayout';
+import theme from '../theme';
+
+export default function MyApp(props: AppProps) {
+  const { Component, pageProps } = props;
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
-    <WalletProvider>
-      <Component {...pageProps} />
-    </WalletProvider>
+    <>
+      <Head>
+        <meta name="viewport" content="initial-scale=1, width=device-width" />
+        <title>YieldBack - Web3 Fixed Income Protocol</title>
+        <meta name="description" content="Create and manage fixed income positions on Stellar" />
+      </Head>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <SettingsProvider>
+            <WalletProvider>
+              <CssBaseline />
+              <DefaultLayout>
+                <Component {...pageProps} />
+              </DefaultLayout>
+            </WalletProvider>
+          </SettingsProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </>
   );
 }
