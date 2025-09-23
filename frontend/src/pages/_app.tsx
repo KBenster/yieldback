@@ -6,10 +6,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useState } from 'react';
-import { SettingsProvider } from '../contexts/';
+import { SettingsProvider } from '../contexts/settings';
 import { WalletProvider } from '../contexts/wallet';
 import DefaultLayout from '../layouts/DefaultLayout';
-import theme from '../theme';
+import theme from '../theme/theme';
 
 export default function MyApp(props: AppProps) {
   const { Component, pageProps } = props;
