@@ -5,8 +5,8 @@ import {
   FreighterModule,
   XBULL_ID,
   xBullModule,
+  ISupportedWallet,
 } from '@creit.tech/stellar-wallets-kit';
-import { Networks } from '@stellar/stellar-sdk';
 
 export interface IWalletContext {
   connected: boolean;
@@ -17,9 +17,9 @@ export interface IWalletContext {
   walletKit: StellarWalletsKit | null;
 }
 
-// Initialize the wallet kit
+// Initialize the wallet kit with hardcoded testnet configuration
 const walletKit: StellarWalletsKit = new StellarWalletsKit({
-  network: (process.env.NEXT_PUBLIC_PASSPHRASE ?? WalletNetwork.TESTNET) as WalletNetwork,
+  network: WalletNetwork.TESTNET,
   selectedWalletId: XBULL_ID,
   modules: [
     new xBullModule(),
@@ -43,9 +43,12 @@ export const WalletProvider = ({ children = null as any }) => {
     try {
       // Check if there's a stored wallet connection
       const storedAddress = localStorage.getItem('walletAddress');
-      if (storedAddress) {
-        // Verify the connection is still valid
+      const storedWalletId = localStorage.getItem('selectedWalletId');
+      
+      if (storedAddress && storedWalletId) {
+        // Set the wallet and try to verify the connection
         try {
+          walletKit.setWallet(storedWalletId);
           const { address } = await walletKit.getAddress();
           if (address) {
             setWalletAddress(address);
@@ -53,10 +56,13 @@ export const WalletProvider = ({ children = null as any }) => {
           } else {
             // Clear stored address if connection is invalid
             localStorage.removeItem('walletAddress');
+            localStorage.removeItem('selectedWalletId');
           }
         } catch (error) {
           // Connection is no longer valid
           localStorage.removeItem('walletAddress');
+          localStorage.removeItem('selectedWalletId');
+          console.log('Previous connection no longer valid:', error);
         }
       }
     } catch (error) {
@@ -68,7 +74,7 @@ export const WalletProvider = ({ children = null as any }) => {
     try {
       setLoading(true);
       await walletKit.openModal({
-        onWalletSelected: async (option) => {
+        onWalletSelected: async (option: ISupportedWallet) => {
           try {
             walletKit.setWallet(option.id);
             const { address } = await walletKit.getAddress();
@@ -84,8 +90,11 @@ export const WalletProvider = ({ children = null as any }) => {
             throw error;
           }
         },
-        onClosed: () => {
+        onClosed: (err?: Error) => {
           setLoading(false);
+          if (err) {
+            console.error('Modal closed with error:', err);
+          }
         }
       });
     } catch (error) {
@@ -163,7 +172,7 @@ export const useWalletOperations = () => {
     try {
       const result = await walletKit.signTransaction(xdr, {
         address: walletAddress,
-        networkPassphrase: process.env.NEXT_PUBLIC_PASSPHRASE ?? Networks.TESTNET,
+        networkPassphrase: "Test SDF Network ; September 2015", // Hardcoded testnet passphrase
       });
       return result.signedTxXdr;
     } catch (error) {
