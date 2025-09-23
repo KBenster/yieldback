@@ -17,9 +17,9 @@ export interface IWalletContext {
   walletKit: StellarWalletsKit | null;
 }
 
-// Initialize the wallet kit with hardcoded testnet configuration
+// Initialize the wallet kit
 const walletKit: StellarWalletsKit = new StellarWalletsKit({
-  network: WalletNetwork.TESTNET,
+  network: WalletNetwork.TESTNET, // Remove the process.env check for now
   selectedWalletId: XBULL_ID,
   modules: [
     new xBullModule(),
@@ -172,7 +172,7 @@ export const useWalletOperations = () => {
     try {
       const result = await walletKit.signTransaction(xdr, {
         address: walletAddress,
-        networkPassphrase: "Test SDF Network ; September 2015", // Hardcoded testnet passphrase
+        networkPassphrase: WalletNetwork.TESTNET, // Use WalletNetwork.TESTNET directly
       });
       return result.signedTxXdr;
     } catch (error) {
