@@ -1,4 +1,5 @@
 use soroban_sdk::{contract, contractimpl, contractclient, Address, Env, BytesN, Bytes, Vec};
+use soroban_sdk::xdr::ToXdr;
 use crate::storage;
 
 #[contract]
@@ -29,12 +30,18 @@ impl FactoryContract {
         coupon_amount: i128,
         principal_amount: i128,
     ) -> Address {
-        // Generate random salt using current ledger sequence and timestamp
-        let ledger_seq = env.ledger().sequence();
-        let timestamp = env.ledger().timestamp();
+        // Get current nonce (escrow count) before incrementing
+        let nonce = storage::get_escrow_count(&env);
+
+        // Generate deterministic salt based on contract arguments and nonce
         let mut salt_data = Bytes::new(&env);
-        salt_data.extend_from_slice(&ledger_seq.to_be_bytes());
-        salt_data.extend_from_slice(&timestamp.to_be_bytes());
+        salt_data.append(&admin.clone().to_xdr(&env));
+        salt_data.append(&token_address.clone().to_xdr(&env));
+        salt_data.append(&blend_pool_address.clone().to_xdr(&env));
+        salt_data.extend_from_slice(&maturity.to_be_bytes());
+        salt_data.extend_from_slice(&coupon_amount.to_be_bytes());
+        salt_data.extend_from_slice(&principal_amount.to_be_bytes());
+        salt_data.extend_from_slice(&nonce.to_be_bytes());
         let salt = env.crypto().keccak256(&salt_data);
 
         // Make this better

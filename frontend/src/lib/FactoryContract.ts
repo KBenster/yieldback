@@ -14,8 +14,6 @@ export interface CreateEscrowArgs {
 
 export class FactoryContract extends Contract {
     static spec: ContractSpec = new ContractSpec([
-        // You need to regenerate these XDR strings to match your actual deployed contract
-        // Run: stellar contract bindings typescript --contract-id CBK3DV272E5J3ZR4AHDFUOW7CHUWD23AYUV3UAW6QEFNP6HFAZGIKYP4 --network testnet --output-dir ./src/lib/generated
         "AAAAAAAAACVDcmVhdGUgYSBuZXcgZXNjcm93IGNvbnRyYWN0IGluc3RhbmNlAAAAAAAADWNyZWF0ZV9lc2Nyb3cAAAAAAAAGAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAADXRva2VuX2FkZHJlc3MAAAAAAAATAAAAAAAAABJibGVuZF9wb29sX2FkZHJlc3MAAAAAABMAAAAAAAAACG1hdHVyaXR5AAAABgAAAAAAAAANY291cG9uX2Ftb3VudAAAAAAAAAsAAAAAAAAAEHByaW5jaXBhbF9hbW91bnQAAAALAAAAAQAAABM=",
         "AAAAAAAAADBHZXQgdGhlIHRvdGFsIG51bWJlciBvZiBlc2Nyb3cgY29udHJhY3RzIGNyZWF0ZWQAAAAQZ2V0X2VzY3Jvd19jb3VudAAAAAAAAAABAAAABA==",
         "AAAAAAAAACFHZXQgYWxsIGVzY3JvdyBjb250cmFjdCBhZGRyZXNzZXMAAAAAAAAPZ2V0X2FsbF9lc2Nyb3dzAAAAAAAAAAABAAAD6gAAABM=",

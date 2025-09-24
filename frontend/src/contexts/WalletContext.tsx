@@ -276,7 +276,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     /**
-     * Invoke a Soroban contract operation (orbit-swap style)
+     * Invoke a Soroban contract operation
      */
     async function invokeSorobanOperation(operation: xdr.Operation): Promise<string | null> {
         try {
@@ -334,7 +334,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     /**
-     * Create an escrow contract using orbit-swap style (XDR approach)
+     * Create an escrow contract (XDR approach)
      * This matches your current FactoryContract implementation
      */
     const createEscrow = async (args: CreateEscrowArgs): Promise<string | null> => {
