@@ -11,7 +11,7 @@ import {
     HotWalletModule, HanaModule, XBULL_ID
 } from "@creit.tech/stellar-wallets-kit";
 import {
-    SorobanRpc,
+    rpc,
     Account,
     TransactionBuilder,
     xdr,
@@ -21,7 +21,7 @@ import { TxStatus } from "@/lib/types";
 import { config } from "@/lib/config";
 import { txToast } from "@/lib/toast";
 import { Id } from "react-toastify";
-import { ModifyPositionArgs, PoolManagerContract, SwapArgs} from "@/lib/PoolManagerContract";
+import { Client as FactoryContract, ClientInterface } from "@/lib/FactoryContract";
 import {LedgerModule} from "@creit.tech/stellar-wallets-kit/modules/ledger.module";
 
 const walletKit: StellarWalletsKit = new StellarWalletsKit({
@@ -53,12 +53,14 @@ interface WalletContextValue {
     clearTxStatus: () => void;
 
     // Contract Functions
-    modifyPosition: (
-        args: ModifyPositionArgs
-    ) => Promise<string | null>,
-    swap: (
-        args: SwapArgs
-    ) => Promise<string | null>,
+    createEscrow: (args: {
+        admin: string;
+        token_address: string;
+        blend_pool_address: string;
+        maturity: bigint;
+        coupon_amount: bigint;
+        principal_amount: bigint;
+    }) => Promise<string | null>;
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
@@ -75,11 +77,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Toast reference to track active transaction toast
     const activeToastId = useRef<Id | null>(null);
-    const rpcServer = new SorobanRpc.Server("https://soroban-testnet.stellar.org", { allowHttp: true });
-    const [sorobanRpc, setSorobanRpc] = useState<SorobanRpc.Server | null>(rpcServer);
-    const contract = new PoolManagerContract(config.contracts.poolManager);
+    const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org", { allowHttp: true });
+    const [sorobanRpc, setSorobanRpc] = useState<rpc.Server | null>(rpcServer);
+    const contract = new FactoryContract({ contractId: config.contracts.factory });
     
-    const [poolManagerContract, setPoolManagerContract] = useState<PoolManagerContract | null>(contract);
+    const [factoryContract, setFactoryContract] = useState<ClientInterface | null>(contract);
 
     /**
      * Gets the public key from the connected wallet
@@ -260,7 +262,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     async function invokeSorobanOperation(operation: xdr.Operation): Promise<string | null> {
         try {
             setTxStatus(TxStatus.BUILDING);
-            if (!sorobanRpc || !poolManagerContract) throw new Error('Soroban RPC or Contract not initialized');
+            if (!sorobanRpc || !factoryContract) throw new Error('Soroban RPC or Contract not initialized');
             const account = await sorobanRpc.getAccount(walletAddress);
 
             const txBuilder = new TransactionBuilder(
@@ -299,10 +301,15 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     /**
      * Place a bet on the Baccarat contract
      */
-    const modifyPosition = async (
-        args: ModifyPositionArgs
-    ): Promise<string | null> => {
-        if (!connected || !poolManagerContract || !sorobanRpc) {
+    const createEscrow = async (args: {
+        admin: string;
+        token_address: string;
+        blend_pool_address: string;
+        maturity: bigint;
+        coupon_amount: bigint;
+        principal_amount: bigint;
+    }): Promise<string | null> => {
+        if (!connected || !factoryContract || !sorobanRpc) {
             setTxError('Wallet not connected or contract not initialized');
             txToast.error('Wallet not connected or contract not initialized');
             return null;
@@ -311,60 +318,33 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLoading(true);
         clearTxStatus();
     
-        // Create a new toast for this transaction with the proper DEX message
-        activeToastId.current = txToast.loading('Depositing liquidity...');
-    
+        // Create a new toast for this transaction
+        activeToastId.current = txToast.loading('Creating escrow...');
+
         try {
-            const xdrString = poolManagerContract.modifyPosition(args);
-            const operation = xdr.Operation.fromXDR(xdrString, 'base64');
-            const txHash = await invokeSorobanOperation(operation);
+            const assembledTx = await factoryContract.create_escrow({
+                admin: args.admin,
+                token_address: args.token_address,
+                blend_pool_address: args.blend_pool_address,
+                maturity: args.maturity,
+                coupon_amount: args.coupon_amount,
+                principal_amount: args.principal_amount
+            });
+
+            const signedXdr = await sign(assembledTx.toXDR());
+            const tx = new Transaction(signedXdr, config.network.passphrase);
+            const success = await sendTransaction(tx);
+
             setIsLoading(false);
-            return txHash;
+            return success ? txHash || null : null;
         } catch (error: unknown) {
-            console.error('Error depositing liquidity:', error);
+            console.error('Error creating escrow:', error);
             if (error instanceof Error) {
-                setTxError(error.message || 'Failed to deposit liquidity');
+                setTxError(error.message || 'Failed to create escrow');
             } else {
-                setTxError('Failed to deposit liquidity');
+                setTxError('Failed to create escrow');
             }
             setTxStatus(TxStatus.FAIL);
-            setIsLoading(false);
-            return null;
-        }
-    };
-    
-    // In the swap function, update the toast message
-    const swap = async (args: SwapArgs): Promise<string | null> => {
-        if (!connected || !poolManagerContract || !sorobanRpc) {
-            setTxError('Wallet not connected or contract not initialized');
-            txToast.error('Wallet not connected or contract not initialized');
-            return null;
-        }
-    
-        setIsLoading(true);
-        clearTxStatus();
-        setTxStatus(TxStatus.BUILDING);
-    
-        // Create a new toast for this transaction with the proper DEX message
-        activeToastId.current = txToast.loading('Swapping tokens...');
-    
-        try {
-            // Use the swap method from PoolManagerContract
-            const xdrString = poolManagerContract.swap(args);
-    
-            const operation = xdr.Operation.fromXDR(xdrString, 'base64');
-            const txHash = await invokeSorobanOperation(operation);
-    
-            setIsLoading(false);
-            return txHash;
-        } catch (error: unknown) {
-            console.error('Error swapping tokens:', error);
-            setTxStatus(TxStatus.FAIL);
-            if (error instanceof Error) {
-                setTxError(error.message || 'Failed to swap tokens');
-            } else {
-                setTxError('Failed to swap tokens');
-            }
             setIsLoading(false);
             return null;
         }
@@ -383,8 +363,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         disconnect,
         clearTxStatus,
 
-        modifyPosition,
-        swap,
+        createEscrow,
     };
 
     return (
