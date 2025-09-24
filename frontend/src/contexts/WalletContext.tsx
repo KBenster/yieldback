@@ -8,21 +8,24 @@ import {
     xBullModule,
     LobstrModule,
     AlbedoModule,
-    HotWalletModule, HanaModule, XBULL_ID
+    HotWalletModule,
+    HanaModule,
+    XBULL_ID
 } from "@creit.tech/stellar-wallets-kit";
 import {
     rpc,
     Account,
     TransactionBuilder,
     xdr,
-    Transaction, TimeoutInfinite,
+    Transaction,
+    TimeoutInfinite,
 } from "@stellar/stellar-sdk";
 import { TxStatus } from "@/lib/types";
 import { config } from "@/lib/config";
 import { txToast } from "@/lib/toast";
 import { Id } from "react-toastify";
-import { Client as FactoryContract, ClientInterface } from "@/lib/FactoryContract";
-import {LedgerModule} from "@creit.tech/stellar-wallets-kit/modules/ledger.module";
+import { FactoryContract, CreateEscrowArgs } from "@/lib/FactoryContract";
+import { LedgerModule } from "@creit.tech/stellar-wallets-kit/modules/ledger.module";
 
 const walletKit: StellarWalletsKit = new StellarWalletsKit({
     network: config.network.passphrase as WalletNetwork,
@@ -38,7 +41,7 @@ const walletKit: StellarWalletsKit = new StellarWalletsKit({
     ],
 });
 
-// Wallet contexts interface
+// Wallet context interface
 interface WalletContextValue {
     connected: boolean;
     walletAddress: string;
@@ -53,14 +56,7 @@ interface WalletContextValue {
     clearTxStatus: () => void;
 
     // Contract Functions
-    createEscrow: (args: {
-        admin: string;
-        token_address: string;
-        blend_pool_address: string;
-        maturity: bigint;
-        coupon_amount: bigint;
-        principal_amount: bigint;
-    }) => Promise<string | null>;
+    createEscrow: (args: CreateEscrowArgs) => Promise<string | null>;
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
@@ -77,11 +73,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Toast reference to track active transaction toast
     const activeToastId = useRef<Id | null>(null);
-    const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org", { allowHttp: true });
-    const [sorobanRpc, setSorobanRpc] = useState<rpc.Server | null>(rpcServer);
-    const contract = new FactoryContract({ contractId: config.contracts.factory });
-    
-    const [factoryContract, setFactoryContract] = useState<ClientInterface | null>(contract);
+
+    // Initialize RPC server and contract using orbit-swap style
+    const rpcServer = new rpc.Server(config.network.sorobanRpcUrl, { allowHttp: true });
+    const [sorobanRpc] = useState<rpc.Server>(rpcServer);
+
+    // Initialize YieldBack factory contract (orbit-swap style)
+    const factoryContract = new FactoryContract(config.contracts.factory);
+    const [contract] = useState<FactoryContract>(factoryContract);
 
     /**
      * Gets the public key from the connected wallet
@@ -208,21 +207,26 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     async function sendTransaction(transaction: Transaction): Promise<boolean> {
         try {
             setTxHash(transaction.hash().toString('hex'));
-            // Check if LaunchTube is valid and should be used
-            // Existing Soroban RPC transaction sending logic
+
             if (!sorobanRpc) {
                 setTxError('No Soroban RPC available to submit transaction');
                 setTxStatus(TxStatus.FAIL);
                 return false;
             }
 
+            console.log('Sending transaction with hash:', transaction.hash().toString('hex'));
+            console.log('Transaction XDR:', transaction.toXDR());
+
             let sendResponse = await sorobanRpc.sendTransaction(transaction);
+            console.log('Send response:', sendResponse);
+
             const startTime = Date.now();
 
             // Poll for pending status
             while (sendResponse.status !== 'PENDING' && (Date.now() - startTime < 5000)) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 sendResponse = await sorobanRpc.sendTransaction(transaction);
+                console.log('Retry send response:', sendResponse);
             }
 
             if (sendResponse.status !== 'PENDING') {
@@ -234,12 +238,16 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
             // Transaction is pending, now poll for final status
             let txResponse = await sorobanRpc.getTransaction(sendResponse.hash);
+            console.log('Initial tx response:', txResponse);
+
             while (txResponse.status === 'NOT_FOUND') {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 txResponse = await sorobanRpc.getTransaction(sendResponse.hash);
+                console.log('Polling tx response:', txResponse);
             }
 
             if (txResponse.status === 'SUCCESS') {
+                console.log('Transaction successful!');
                 setTxStatus(TxStatus.SUCCESS);
                 return true;
             } else {
@@ -250,29 +258,49 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
         } catch (error) {
             console.error('Error sending transaction:', error);
-            setTxError('Error sending transaction');
+
+            // Enhanced error handling for XDR issues
+            let errorMessage = 'Error sending transaction';
+            if (error instanceof Error) {
+                if (error.message.includes('Bad union switch')) {
+                    errorMessage = 'XDR parsing error: The contract interface may have changed. Please regenerate contract bindings.';
+                } else {
+                    errorMessage = error.message;
+                }
+            }
+
+            setTxError(errorMessage);
             setTxStatus(TxStatus.FAIL);
             return false;
         }
     }
 
     /**
-     * Invoke a Soroban contract operation
+     * Invoke a Soroban contract operation (orbit-swap style)
      */
     async function invokeSorobanOperation(operation: xdr.Operation): Promise<string | null> {
         try {
             setTxStatus(TxStatus.BUILDING);
-            if (!sorobanRpc || !factoryContract) throw new Error('Soroban RPC or Contract not initialized');
+            if (!sorobanRpc || !contract) throw new Error('Soroban RPC or Contract not initialized');
+
+            // Debug logging
+            console.log('RPC URL being used:', config.network.sorobanRpcUrl);
+            console.log('Network passphrase:', config.network.passphrase);
+            console.log('Wallet address:', walletAddress);
+
+            // Try to get the account
+            console.log('Attempting to get account from RPC...');
             const account = await sorobanRpc.getAccount(walletAddress);
+            console.log('Account found successfully:', account.accountId());
 
             const txBuilder = new TransactionBuilder(
                 new Account(account.accountId(), account.sequenceNumber()),
                 {
-                    fee: "100",
+                    fee: "100000", // Higher fee for contract invocation
                     networkPassphrase: config.network.passphrase,
                 }
             ).addOperation(operation)
-            .setTimeout(TimeoutInfinite);
+                .setTimeout(TimeoutInfinite);
 
             const transaction = txBuilder.build();
 
@@ -288,6 +316,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             return success ? txHash || null : null;
         } catch (e: unknown) {
             console.error('Error invoking Soroban operation:', e);
+
+            // Enhanced error logging
+            if (e instanceof Error) {
+                console.error('Error message:', e.message);
+                console.error('Error stack:', e.stack);
+            }
+
             if (e instanceof Error) {
                 setTxError(e.message || 'Unknown error');
             } else {
@@ -299,57 +334,72 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     /**
-     * Place a bet on the Baccarat contract
+     * Create an escrow contract using orbit-swap style (XDR approach)
+     * This matches your current FactoryContract implementation
      */
-    const createEscrow = async (args: {
-        admin: string;
-        token_address: string;
-        blend_pool_address: string;
-        maturity: bigint;
-        coupon_amount: bigint;
-        principal_amount: bigint;
-    }): Promise<string | null> => {
-        if (!connected || !factoryContract || !sorobanRpc) {
+    const createEscrow = async (args: CreateEscrowArgs): Promise<string | null> => {
+        if (!connected || !contract || !sorobanRpc) {
             setTxError('Wallet not connected or contract not initialized');
             txToast.error('Wallet not connected or contract not initialized');
             return null;
         }
-    
+
         setIsLoading(true);
         clearTxStatus();
-    
+
         // Create a new toast for this transaction
         activeToastId.current = txToast.loading('Creating escrow...');
 
         try {
-            const assembledTx = await factoryContract.create_escrow({
-                admin: args.admin,
-                token_address: args.token_address,
-                blend_pool_address: args.blend_pool_address,
-                maturity: args.maturity,
-                coupon_amount: args.coupon_amount,
-                principal_amount: args.principal_amount
-            });
+            console.log('Creating escrow with args:', args);
 
-            const signedXdr = await sign(assembledTx.toXDR());
-            const tx = new Transaction(signedXdr, config.network.passphrase);
-            const success = await sendTransaction(tx);
+            // Use your FactoryContract's createEscrow method (returns XDR string)
+            const xdrString = contract.createEscrow(args);
+
+            // Convert XDR string to Operation
+            let operation: xdr.Operation;
+            try {
+                operation = xdr.Operation.fromXDR(xdrString, 'base64');
+            } catch (xdrError) {
+                console.error('XDR parsing error:', xdrError);
+                throw new Error(`Invalid XDR format: ${xdrError instanceof Error ? xdrError.message : 'Unknown XDR error'}`);
+            }
+
+            // Invoke the operation using orbit-swap style
+            const txHash = await invokeSorobanOperation(operation);
 
             setIsLoading(false);
-            return success ? txHash || null : null;
+            return txHash;
+
         } catch (error: unknown) {
             console.error('Error creating escrow:', error);
-            if (error instanceof Error) {
-                setTxError(error.message || 'Failed to create escrow');
-            } else {
-                setTxError('Failed to create escrow');
-            }
             setTxStatus(TxStatus.FAIL);
+
+            let errorMessage = 'Failed to create escrow';
+            if (error instanceof Error) {
+                // Handle specific error types
+                if (error.message.includes('Bad union switch')) {
+                    errorMessage = 'Contract interface mismatch. The contract may have been updated.';
+                } else if (error.message.includes('MissingValue')) {
+                    errorMessage = 'Contract not found. Please check the contract address.';
+                } else if (error.message.includes('InvokeHostFunctionOpExceededArchivalTtl')) {
+                    errorMessage = 'Contract data has expired. Please restore the contract.';
+                } else if (error.message.includes('InvokeHostFunctionOpResourceLimitExceeded')) {
+                    errorMessage = 'Transaction resource limits exceeded. Try with higher fees.';
+                } else if (error.message.includes('Invalid XDR format')) {
+                    errorMessage = error.message; // Use the XDR parsing error directly
+                } else {
+                    errorMessage = error.message || 'Failed to create escrow';
+                }
+            }
+
+            console.error('Processed error message:', errorMessage);
+            setTxError(errorMessage);
             setIsLoading(false);
             return null;
         }
     };
-    
+
     const value: WalletContextValue = {
         connected,
         walletAddress,

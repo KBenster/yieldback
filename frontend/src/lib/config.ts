@@ -1,11 +1,10 @@
 export const config = {
     network: {
-        sorobanRpcUrl: 'https://mainnet.sorobanrpc.com',
-        horizonUrl: 'https://horizon.stellar.org',
-        passphrase: "Test SDF Network ; September 2015",
-        maxConcurrentRequests: 10,
+        sorobanRpcUrl: 'https://soroban-testnet.stellar.org', // Must be testnet
+        horizonUrl: 'https://horizon-testnet.stellar.org',     // Must be testnet
+        passphrase: "Test SDF Network ; September 2015",      // Testnet passphrase
     },
     contracts: {
-        factory: 'CAOZCSKL2NJIZ4BWMFFAZQSADSELBVYY2LVFLDDBTSSMCPF3AP2YX6UK',
+        factory: 'CBK3DV272E5J3ZR4AHDFUOW7CHUWD23AYUV3UAW6QEFNP6HFAZGIKYP4',
     }
 };
