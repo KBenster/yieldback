@@ -1,5 +1,23 @@
 "use client";
+// Looking at your git status, I can see you're already in the process of migrating from Next.js App Router (using src/app/) to Pages Router (using src/pages/).
+//
+// In Next.js Pages Router, the pages directory works through file-based routing where:
+//
+//     - Each file in pages/ becomes a route automatically
+// - pages/index.tsx → / (home page)
+// - pages/about.tsx → /about
+// - pages/contact.tsx → /contact
+// - pages/blog/[slug].tsx → /blog/dynamic-slug (dynamic routes)
+//
+// From your git status, you already have:
+//     - src/pages/index.tsx (home page)
+// - src/pages/create.tsx (create page)
+// - src/pages/_app.tsx (app wrapper)
+//
+// You can add more pages by simply creating new .tsx files in the pages directory. Each file should export a React component as the default export, and Next.js will
+// automatically handle the routing.
 
+import { useState } from 'react';
 import { WalletProvider, useWallet } from '@/contexts/WalletContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -16,6 +34,17 @@ function WalletConnection() {
         createEscrow
     } = useWallet();
 
+    // Form state for escrow parameters
+    const [escrowForm, setEscrowForm] = useState({
+        tokenAddress: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        blendPoolAddress: "CA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJUWDA",
+        maturityDays: "1",
+        couponAmount: "1",
+        principalAmount: "10"
+    });
+
+    const [userType, setUserType] = useState("sponsor");
+
     const handleConnect = async () => {
         try {
             await connect();
@@ -28,13 +57,17 @@ function WalletConnection() {
         if (!connected || !walletAddress) return;
 
         try {
+            const maturityTimestamp = Math.floor(Date.now() / 1000) + (parseInt(escrowForm.maturityDays) * 86400);
+            const couponAmountWithDecimals = BigInt(parseFloat(escrowForm.couponAmount) * 1000000); // Assuming 6 decimals
+            const principalAmountWithDecimals = BigInt(parseFloat(escrowForm.principalAmount) * 1000000); // Assuming 6 decimals
+
             const result = await createEscrow({
                 admin: walletAddress,
-                token_address: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", // Example token address
-                blend_pool_address: "CA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJUWDA", // Example blend pool address
-                maturity: BigInt(Math.floor(Date.now() / 1000) + 86400), // 24 hours from now
-                coupon_amount: BigInt("1000000"), // 1 token (assuming 6 decimals)
-                principal_amount: BigInt("10000000") // 10 tokens (assuming 6 decimals)
+                token_address: escrowForm.tokenAddress,
+                blend_pool_address: escrowForm.blendPoolAddress,
+                maturity: BigInt(maturityTimestamp),
+                coupon_amount: couponAmountWithDecimals,
+                principal_amount: principalAmountWithDecimals
             });
 
             if (result) {
@@ -43,6 +76,13 @@ function WalletConnection() {
         } catch (error) {
             console.error('Failed to create escrow:', error);
         }
+    };
+
+    const handleFormChange = (field: string, value: string) => {
+        setEscrowForm(prev => ({
+            ...prev,
+            [field]: value
+        }));
     };
 
     const shortenAddress = (address: string) => {
@@ -123,19 +163,141 @@ function WalletConnection() {
                                 </div>
                             )}
 
-                            {/* Test Create Escrow Button */}
+                            {/* Create Escrow Form */}
                             <div className="border-t border-gray-700 pt-6">
-                                <h3 className="text-xl font-semibold mb-4">Test Contract Interaction</h3>
-                                <p className="text-gray-400 text-sm mb-4">
-                                    This will create a test escrow contract with sample parameters.
+                                <h3 className="text-xl font-semibold mb-4">Create Position</h3>
+                                <p className="text-gray-400 text-sm mb-6">
+                                    Configure and deploy a new escrow contract with your parameters.
                                 </p>
-                                <button
-                                    onClick={handleCreateEscrow}
-                                    disabled={isLoading || !connected || txStatus === 'BUILDING' || txStatus === 'SIGNING' || txStatus === 'SUBMITTING'}
-                                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                                >
-                                    Create Test Escrow
-                                </button>
+
+                                <div className="space-y-4">
+                                    {/* User Type Toggle */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-3">
+                                            Side you are taking
+                                        </label>
+                                        <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-600">
+                                            <button
+                                                type="button"
+                                                onClick={() => setUserType("sponsor")}
+                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                                                    userType === "sponsor"
+                                                        ? "bg-purple-600 text-white shadow-sm"
+                                                        : "text-gray-400 hover:text-gray-300"
+                                                }`}
+                                            >
+                                                Sponsor
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setUserType("principal")}
+                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                                                    userType === "principal"
+                                                        ? "bg-purple-600 text-white shadow-sm"
+                                                        : "text-gray-400 hover:text-gray-300"
+                                                }`}
+                                            >
+                                                Principal
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Token Address */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Token Address
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={escrowForm.tokenAddress}
+                                            onChange={(e) => handleFormChange('tokenAddress', e.target.value)}
+                                            placeholder="Enter token contract address..."
+                                            className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                                        />
+                                    </div>
+
+                                    {/* Blend Pool Address */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Blend Pool Address
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={escrowForm.blendPoolAddress}
+                                            onChange={(e) => handleFormChange('blendPoolAddress', e.target.value)}
+                                            placeholder="Enter blend pool contract address..."
+                                            className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                                        />
+                                    </div>
+
+                                    {/* Form Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {/* Maturity Days */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                Maturity (Days)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={escrowForm.maturityDays}
+                                                onChange={(e) => handleFormChange('maturityDays', e.target.value)}
+                                                placeholder="1"
+                                                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                                            />
+                                        </div>
+
+                                        {/* Coupon Amount */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                Coupon Amount
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.000001"
+                                                value={escrowForm.couponAmount}
+                                                onChange={(e) => handleFormChange('couponAmount', e.target.value)}
+                                                placeholder="1.0"
+                                                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                                            />
+                                        </div>
+
+                                        {/* Principal Amount */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                Principal Amount
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.000001"
+                                                value={escrowForm.principalAmount}
+                                                onChange={(e) => handleFormChange('principalAmount', e.target.value)}
+                                                placeholder="10.0"
+                                                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Preview */}
+                                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-600">
+                                        <h4 className="text-sm font-medium text-gray-300 mb-2">Preview</h4>
+                                        <div className="text-xs text-gray-400 space-y-1">
+                                            <p>Maturity: {new Date(Date.now() + (parseInt(escrowForm.maturityDays || "1") * 86400000)).toLocaleDateString()}</p>
+                                            <p>Coupon: {escrowForm.couponAmount} tokens</p>
+                                            <p>Principal: {escrowForm.principalAmount} tokens</p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={handleCreateEscrow}
+                                        disabled={isLoading || !connected || txStatus === 'BUILDING' || txStatus === 'SIGNING' || txStatus === 'SUBMITTING'}
+                                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                                    >
+                                        Create Escrow Contract
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -145,8 +307,8 @@ function WalletConnection() {
                 <div className="mt-8 bg-gray-900/50 rounded-lg p-4 border border-gray-800">
                     <h3 className="text-lg font-semibold mb-2">About YieldBack</h3>
                     <p className="text-gray-400 text-sm">
-                        YieldBack is a DeFi protocol built on Stellar that allows you to create escrow contracts
-                        for yield-bearing assets. Connect your wallet to start creating and managing escrows.
+                        YieldBack is a DeFi protocol built on Stellar that allows you to create fixed-income coupon bond positions for yield-bearing protocols.
+                        Connect your wallet to earn fixed interest and add liquidity.
                     </p>
                 </div>
             </div>
@@ -154,7 +316,7 @@ function WalletConnection() {
     );
 }
 
-export default function Page() {
+export default function Create() {
     return (
         <WalletProvider>
             <WalletConnection />

@@ -5,10 +5,10 @@ mod token;
 use token::{DataKey, DECIMALS, ESCROW_CONTRACT, MATURITY_DATE, NAME, SYMBOL, TOTAL_SUPPLY};
 
 #[contract]
-pub struct CouponToken;
+pub struct YieldToken;
 //TODO: bring functions into token.rs, keep in lib.rs as mod
 #[contractimpl]
-impl CouponToken {
+impl YieldToken {
     pub fn __constructor(
         env: Env,
         admin: Address,

@@ -1,7 +1,18 @@
 [workspace]
 resolver = "2"
 members = [
-  "contracts/*",
+  # Core business logic
+  "contracts/core/escrow",
+  "contracts/core/factory",
+
+  # Token contracts
+  "contracts/tokens/yield-token",
+  "contracts/tokens/principal-token",
+
+  # Lending infrastructure
+  "contracts/lending/core",
+  "contracts/lending/protocol-lender",
+  "contracts/lending/adapters/blend-adapter",
 ]
 
 [workspace.dependencies]

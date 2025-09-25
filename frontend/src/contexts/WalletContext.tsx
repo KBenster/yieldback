@@ -239,13 +239,28 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             // Transaction is pending, now poll for final status
             let txResponse = await sorobanRpc.getTransaction(sendResponse.hash);
             console.log('Initial tx response:', txResponse);
+            console.log('Raw tx response data:', JSON.stringify(txResponse, null, 2));
+            console.log('Initial tx response (stringified):', JSON.stringify(txResponse, null, 2));
 
-            while (txResponse.status === 'NOT_FOUND') {
+            // Poll for up to 60 seconds
+            let attempts = 0;
+            const maxAttempts = 60;
+
+            while (txResponse.status === 'NOT_FOUND' && attempts < maxAttempts) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
+                console.log("trying transaction hash", sendResponse.hash)
                 txResponse = await sorobanRpc.getTransaction(sendResponse.hash);
-                console.log('Polling tx response:', txResponse);
+                console.log(`Polling tx response (${attempts + 1}/${maxAttempts}):`, txResponse);
+                attempts++;
             }
 
+            // If still not found after polling, treat as failure
+            if (txResponse.status === 'NOT_FOUND') {
+                console.error('Transaction not found after 60 seconds - likely failed validation');
+                setTxError('Transaction not found - may have failed validation or been dropped');
+                setTxStatus(TxStatus.FAIL);
+                return false;
+            }
             if (txResponse.status === 'SUCCESS') {
                 console.log('Transaction successful!');
                 setTxStatus(TxStatus.SUCCESS);
@@ -296,7 +311,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const txBuilder = new TransactionBuilder(
                 new Account(account.accountId(), account.sequenceNumber()),
                 {
-                    fee: "100000", // Higher fee for contract invocation
+                    fee: "1000000", // Much higher fee for contract invocation
                     networkPassphrase: config.network.passphrase,
                 }
             ).addOperation(operation)
@@ -305,7 +320,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const transaction = txBuilder.build();
 
             // Create a new transaction with the assembled transaction from simulation
+            console.log('Preparing transaction...');
             const assembledTx = await sorobanRpc.prepareTransaction(transaction);
+            console.log('Transaction prepared successfully');
             // Sign transaction
             const signedXdr = await sign(assembledTx.toXDR());
             const tx = new Transaction(signedXdr, config.network.passphrase);
@@ -362,6 +379,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 operation = xdr.Operation.fromXDR(xdrString, 'base64');
             } catch (xdrError) {
                 console.error('XDR parsing error:', xdrError);
+                console.error('XDR string:', xdrString);
+
+                // If it's the "Bad union switch" error, it likely means contract bindings are outdated
+                if (xdrError instanceof Error && xdrError.message.includes('Bad union switch')) {
+                    throw new Error('Contract bindings are outdated. Please regenerate them from the latest contract WASM.');
+                }
+
                 throw new Error(`Invalid XDR format: ${xdrError instanceof Error ? xdrError.message : 'Unknown XDR error'}`);
             }
 

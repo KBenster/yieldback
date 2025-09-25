@@ -8,9 +8,16 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/strategy/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/coupon/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/principle/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/contracts/coupon-token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/principal-token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/factory/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/core/escrow/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/core/factory/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/lending/adapters/blend-adapter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/lending/core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/lending/protocol-lender/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/principal-token/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/yield-token/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/yield-token/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

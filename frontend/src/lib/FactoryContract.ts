@@ -22,8 +22,8 @@ export class FactoryContract extends Contract {
 
     static readonly parsers = {
         // Updated to match actual return types
-        createEscrow: (result: string): string =>
-            FactoryContract.spec.funcResToNative('create_escrow', result) as string,
+        createEscrow: (result: string): Address =>
+            FactoryContract.spec.funcResToNative('create_escrow', result) as Address,
 
         getEscrowCount: (result: string): u32 =>
             FactoryContract.spec.funcResToNative('get_escrow_count', result) as u32,

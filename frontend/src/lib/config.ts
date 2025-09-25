@@ -5,6 +5,6 @@ export const config = {
         passphrase: "Test SDF Network ; September 2015",      // Testnet passphrase
     },
     contracts: {
-        factory: 'CBK3DV272E5J3ZR4AHDFUOW7CHUWD23AYUV3UAW6QEFNP6HFAZGIKYP4',
+        factory: 'CA6LOUFZUB44ZCTEGBRVCZNCZ4ZVUW5K4UDSIY26QYIQJRQOQ72GJZC7',
     }
 };
