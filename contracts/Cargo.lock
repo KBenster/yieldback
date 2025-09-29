@@ -537,6 +537,7 @@ name = "escrow"
 version = "0.0.0"
 dependencies = [
  "blend-contract-sdk",
+ "lending-core",
  "soroban-sdk",
 ]
 
