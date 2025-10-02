@@ -1,22 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-  # Core business logic
-  "contracts/core/escrow",
-  "contracts/core/factory",
-
-  # Token contracts
-  "contracts/tokens/yield-token",
-  "contracts/tokens/principal-token",
-
-  # Lending infrastructure
-  "contracts/lending/core",
-  "contracts/lending/protocol-lender",
-  "contracts/lending/adapters/blend-adapter",
+  "contracts/escrow",
+  "contracts/simulation/blend-pool-sim",
+  "contracts/simulation/test-token",
+  "tests"
 ]
 
 [workspace.dependencies]
-soroban-sdk = "22.0.8"
+soroban-sdk = "23.0.2"
 
 [profile.release]
 opt-level = "z"
