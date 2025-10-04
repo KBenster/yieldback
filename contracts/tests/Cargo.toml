@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 blend-pool-sim = { path = "../contracts/simulation/blend-pool-sim" }
-test-token = { path = "../contracts/simulation/test-token" }
 
 [[test]]
 name = "blend_pool_tests"

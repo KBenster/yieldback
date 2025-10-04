@@ -3,7 +3,7 @@ resolver = "2"
 members = [
   "contracts/escrow",
   "contracts/simulation/blend-pool-sim",
-  "contracts/simulation/test-token",
+  "contracts/tokens/standardized_yield",
   "tests"
 ]
 

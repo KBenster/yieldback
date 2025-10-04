@@ -1373,6 +1373,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "standardized_yield"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1442,19 +1449,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-token"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
 name = "tests"
 version = "0.1.0"
 dependencies = [
  "blend-pool-sim",
  "soroban-sdk",
- "test-token",
 ]
 
 [[package]]
