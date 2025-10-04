@@ -1453,7 +1453,9 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "blend-pool-sim",
+ "escrow",
  "soroban-sdk",
+ "standardized_yield",
 ]
 
 [[package]]
