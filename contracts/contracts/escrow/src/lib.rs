@@ -1,3 +1,5 @@
 #![no_std]
 mod token_deployment;
-mod escrow;
+pub mod escrow;
+
+pub use escrow::{EscrowContract, EscrowContractClient};
