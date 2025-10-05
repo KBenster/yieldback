@@ -17,10 +17,10 @@ pub enum DataKey {
 }
 
 #[contract]
-pub struct BlendPoolSimulator;
+pub struct YieldPoolSimulator;
 
 #[contractimpl]
-impl BlendPoolSimulator {
+impl YieldPoolSimulator {
     /// Initialize the pool with a token address and annual interest rate
     /// interest_rate_bps: interest rate in basis points (e.g., 500 = 5% APY)
     /// Note: The pool contract should be set as the admin of the token to mint interest

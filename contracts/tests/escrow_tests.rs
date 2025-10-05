@@ -1,14 +1,21 @@
 use escrow::{EscrowContract, EscrowContractClient};
 use standardized_yield::StandardizedYieldClient;
-use blend_pool_sim::{BlendPoolSimulator, BlendPoolSimulatorClient};
+use yield_pool_sim::{YieldPoolSimulator, YieldPoolSimulatorClient};
 use soroban_sdk::{
     testutils::Address as _,
     token, Address, Bytes, Env, String,
 };
 
+
 mod standardized_yield_wasm {
     soroban_sdk::contractimport!(
         file = "../wasms/standardized_yield.wasm"
+    );
+}
+
+mod principal_token_wasm {
+    soroban_sdk::contractimport!(
+        file = "../wasms/principal_token.wasm"
     );
 }
 
@@ -17,45 +24,20 @@ fn test_escrow_constructor() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let blend_pool = Address::generate(&env);
-    let token = Address::generate(&env);
-    let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
-    let maturity_date = 1000000u64;
-
-    let contract_id = env.register(
-        EscrowContract,
-        (&blend_pool, &token, &sy_wasm_hash, &maturity_date),
-    );
-    let _client = EscrowContractClient::new(&env, &contract_id);
-}
-
-#[test]
-fn test_deploy_sy_token() {
-    let env = Env::default();
-    env.mock_all_auths();
-
     let admin = Address::generate(&env);
     let blend_pool = Address::generate(&env);
     let token = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let contract_id = env.register(
         EscrowContract,
-        (&blend_pool, &token, &sy_wasm_hash, &maturity_date),
+        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
     );
-    let client = EscrowContractClient::new(&env, &contract_id);
-
-    let name = String::from_str(&env, "Standardized Yield");
-    let symbol = String::from_str(&env, "SY");
-
-    let sy_token_address = client.deploy_sy_token(&admin, &name, &symbol);
-
-    // Verify the deployed token has correct metadata
-    let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
-    assert_eq!(sy_client.name(), name);
-    assert_eq!(sy_client.symbol(), symbol);
+    let _client = EscrowContractClient::new(&env, &contract_id);
 }
+
 
 #[test]
 fn test_deposit() {
@@ -70,27 +52,26 @@ fn test_deposit() {
     // Setup blend pool
     let interest_rate_bps = 1000u32;
     let pool_contract_id = env.register(
-        BlendPoolSimulator,
+        YieldPoolSimulator,
         (&token_id.address(), &interest_rate_bps),
     );
-    let pool_client = BlendPoolSimulatorClient::new(&env, &pool_contract_id);
+    let pool_client = YieldPoolSimulatorClient::new(&env, &pool_contract_id);
     token_admin_client.set_admin(&pool_contract_id);
 
     // Setup escrow contract
     let admin = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let escrow_contract_id = env.register(
         EscrowContract,
-        (&pool_contract_id, &token_id.address(), &sy_wasm_hash, &maturity_date),
+        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
     );
     let escrow_client = EscrowContractClient::new(&env, &escrow_contract_id);
 
-    // Deploy SY token
-    let name = String::from_str(&env, "Standardized Yield");
-    let symbol = String::from_str(&env, "SY");
-    let sy_token_address = escrow_client.deploy_sy_token(&admin, &name, &symbol);
+    // Get SY token address
+    let sy_token_address = escrow_client.get_sy_token();
     let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
 
     // Create user and mint tokens
@@ -116,15 +97,17 @@ fn test_deposit_zero_amount() {
     let env = Env::default();
     env.mock_all_auths();
 
+    let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let blend_pool = Address::generate(&env);
     let token = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let contract_id = env.register(
         EscrowContract,
-        (&blend_pool, &token, &sy_wasm_hash, &maturity_date),
+        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
     );
     let client = EscrowContractClient::new(&env, &contract_id);
 
@@ -137,15 +120,17 @@ fn test_deposit_negative_amount() {
     let env = Env::default();
     env.mock_all_auths();
 
+    let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let blend_pool = Address::generate(&env);
     let token = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let contract_id = env.register(
         EscrowContract,
-        (&blend_pool, &token, &sy_wasm_hash, &maturity_date),
+        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
     );
     let client = EscrowContractClient::new(&env, &contract_id);
 

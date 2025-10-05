@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "adapter_trait"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -179,13 +186,6 @@ name = "base64ct"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
-
-[[package]]
-name = "blend-pool-sim"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
 
 [[package]]
 name = "block-buffer"
@@ -906,6 +906,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "principal_token"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1452,10 +1459,10 @@ dependencies = [
 name = "tests"
 version = "0.1.0"
 dependencies = [
- "blend-pool-sim",
  "escrow",
  "soroban-sdk",
  "standardized_yield",
+ "yield-pool-sim",
 ]
 
 [[package]]
@@ -1685,6 +1692,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
 dependencies = [
  "windows-link",
+]
+
+[[package]]
+name = "yield-pool-sim"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "yield_sim_adapter"
+version = "0.1.0"
+dependencies = [
+ "adapter_trait",
+ "soroban-sdk",
 ]
 
 [[package]]

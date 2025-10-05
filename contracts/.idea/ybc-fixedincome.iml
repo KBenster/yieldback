@@ -18,9 +18,14 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/principal-token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/yield-token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/yield-token/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/contracts/simulation/blend-pool-sim/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/simulation/test-token/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/principal_token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/standardized_yield/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/adapter/protocol_adapters/yield_sim_adapter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/adapter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/adapter/traits/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/interfaces/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/simulation/yield-pool-sim/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-blend-pool-sim = { path = "../contracts/simulation/blend-pool-sim" }
+yield-pool-sim = { path = "../contracts/simulation/yield-pool-sim" }
 escrow = { path = "../contracts/escrow" }
 standardized_yield = { path = "../contracts/tokens/standardized_yield" }
 
 [[test]]
-name = "blend_pool_tests"
-path = "blend_pool_tests.rs"
+name = "yield_pool_tests"
+path = "yield_pool_tests.rs"
 
 [[test]]
 name = "escrow_tests"

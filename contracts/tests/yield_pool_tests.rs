@@ -1,4 +1,4 @@
-use blend_pool_sim::{BlendPoolSimulator, BlendPoolSimulatorClient};
+use yield_pool_sim::{YieldPoolSimulator, YieldPoolSimulatorClient};
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Env,
@@ -17,10 +17,10 @@ fn test_deposit_and_withdrawal_with_interest() {
     // Create pool contract with constructor
     let interest_rate_bps = 1000u32;
     let pool_contract_id = env.register(
-        BlendPoolSimulator,
+        YieldPoolSimulator,
         (&token_id.address(), &interest_rate_bps),
     );
-    let pool_client = BlendPoolSimulatorClient::new(&env, &pool_contract_id);
+    let pool_client = YieldPoolSimulatorClient::new(&env, &pool_contract_id);
 
     // Set pool as admin to allow minting interest
     token_admin_client.set_admin(&pool_contract_id);
@@ -81,10 +81,10 @@ fn test_partial_withdrawal_with_interest() {
     // Create pool contract with constructor
     let interest_rate_bps = 500u32;
     let pool_contract_id = env.register(
-        BlendPoolSimulator,
+        YieldPoolSimulator,
         (&token_id.address(), &interest_rate_bps),
     );
-    let pool_client = BlendPoolSimulatorClient::new(&env, &pool_contract_id);
+    let pool_client = YieldPoolSimulatorClient::new(&env, &pool_contract_id);
 
     // Set pool as admin
     token_admin_client.set_admin(&pool_contract_id);

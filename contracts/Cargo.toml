@@ -1,8 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
+  "contracts/adapter/traits",
+  "contracts/adapter/protocol_adapters/yield_sim_adapter",
   "contracts/escrow",
-  "contracts/simulation/blend-pool-sim",
+  "contracts/simulation/yield-pool-sim",
+  "contracts/tokens/principal_token",
   "contracts/tokens/standardized_yield",
   "tests"
 ]

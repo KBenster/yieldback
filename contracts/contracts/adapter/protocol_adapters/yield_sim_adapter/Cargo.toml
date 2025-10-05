@@ -1,5 +1,5 @@
 [package]
-name = "blend-pool-sim"
+name = "yield_sim_adapter"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
+adapter_trait = { path = "../../traits" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
