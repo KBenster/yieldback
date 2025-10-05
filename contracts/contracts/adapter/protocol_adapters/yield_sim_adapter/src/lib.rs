@@ -67,6 +67,15 @@ impl YieldAdapter for YieldSimAdapter {
     }
 
     fn get_assets(env: Env) -> i128 {
-            todo!()
+        let yield_pool_address: Address = env.storage().instance()
+            .get(&DataKey::YieldPool)
+            .expect("Not initialized");
+
+        // Query the balance of this adapter contract in the yield pool
+        env.invoke_contract::<i128>(
+            &yield_pool_address,
+            &soroban_sdk::symbol_short!("balance"),
+            (env.current_contract_address(),).into_val(&env)
+        )
     }
 }

@@ -29,8 +29,6 @@ impl StandardizedYieldTrait for StandardizedYield {
         name: String,
         symbol: String,
     ) {
-        admin.require_auth();
-
         let metadata = TokenMetadata {
             name,
             symbol,

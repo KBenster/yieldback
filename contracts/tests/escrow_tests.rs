@@ -1,5 +1,7 @@
 use escrow::{EscrowContract, EscrowContractClient};
 use standardized_yield::StandardizedYieldClient;
+use principal_token::PrincipalTokenClient;
+use yield_token::YieldTokenClient;
 use yield_pool_sim::{YieldPoolSimulator, YieldPoolSimulatorClient};
 use soroban_sdk::{
     testutils::Address as _,
@@ -19,6 +21,18 @@ mod principal_token_wasm {
     );
 }
 
+mod yield_token_wasm {
+    soroban_sdk::contractimport!(
+        file = "../wasms/yield_token.wasm"
+    );
+}
+
+mod blend_adapter_wasm {
+    soroban_sdk::contractimport!(
+        file = "../wasms/yield_sim_adapter.wasm"
+    );
+}
+
 #[test]
 fn test_escrow_constructor() {
     let env = Env::default();
@@ -29,11 +43,13 @@ fn test_escrow_constructor() {
     let token = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
     let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let contract_id = env.register(
         EscrowContract,
-        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
+        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
     );
     let _client = EscrowContractClient::new(&env, &contract_id);
 }
@@ -62,11 +78,13 @@ fn test_deposit() {
     let admin = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
     let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let escrow_contract_id = env.register(
         EscrowContract,
-        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
+        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
     );
     let escrow_client = EscrowContractClient::new(&env, &escrow_contract_id);
 
@@ -82,9 +100,12 @@ fn test_deposit() {
     let deposit_amount = 100_000i128;
     escrow_client.deposit(&user, &deposit_amount);
 
-    // Verify user balance in blend pool
-    let pool_balance = pool_client.balance(&user);
-    assert_eq!(pool_balance, deposit_amount);
+    // Get adapter address
+    let adapter_address = escrow_client.get_adapter();
+
+    // Verify adapter balance in blend pool
+    let adapter_pool_balance = pool_client.balance(&adapter_address);
+    assert_eq!(adapter_pool_balance, deposit_amount);
 
     // Verify SY tokens were minted to escrow contract
     let sy_balance = sy_client.balance(&escrow_contract_id);
@@ -103,11 +124,13 @@ fn test_deposit_zero_amount() {
     let token = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
     let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let contract_id = env.register(
         EscrowContract,
-        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
+        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
     );
     let client = EscrowContractClient::new(&env, &contract_id);
 
@@ -126,13 +149,228 @@ fn test_deposit_negative_amount() {
     let token = Address::generate(&env);
     let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
     let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
     let maturity_date = 1000000u64;
 
     let contract_id = env.register(
         EscrowContract,
-        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &maturity_date),
+        (&admin, &blend_pool, &token, &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
     );
     let client = EscrowContractClient::new(&env, &contract_id);
 
     client.deposit(&user, &-100);
+}
+
+#[test]
+fn test_pt_yt_tokens_minted_on_deposit() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Setup token
+    let token_id = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    // Setup blend pool
+    let interest_rate_bps = 1000u32;
+    let pool_contract_id = env.register(
+        YieldPoolSimulator,
+        (&token_id.address(), &interest_rate_bps),
+    );
+    token_admin_client.set_admin(&pool_contract_id);
+
+    // Setup escrow contract
+    let admin = Address::generate(&env);
+    let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
+    let maturity_date = 1000000u64;
+
+    let escrow_contract_id = env.register(
+        EscrowContract,
+        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
+    );
+    let escrow_client = EscrowContractClient::new(&env, &escrow_contract_id);
+
+    // Get PT and YT token addresses
+    let pt_token_address = escrow_client.get_pt_token();
+    let yt_token_address = escrow_client.get_yt_token();
+    let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+    let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+
+    // Create user and mint tokens
+    let user = Address::generate(&env);
+    token_admin_client.mint(&user, &1_000_000);
+
+    // Deposit
+    let deposit_amount = 100_000i128;
+    escrow_client.deposit(&user, &deposit_amount);
+
+    // Verify PT tokens were minted to user
+    let pt_balance = pt_client.balance(&user);
+    assert_eq!(pt_balance, deposit_amount); // 1:1 exchange rate initially
+
+    // Verify YT tokens were minted to user
+    let yt_balance = yt_client.balance(&user);
+    assert_eq!(yt_balance, deposit_amount); // 1:1 exchange rate initially
+
+    // Verify PT and YT amounts are equal
+    assert_eq!(pt_balance, yt_balance);
+}
+
+#[test]
+fn test_pt_yt_equal_quantities() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Setup token
+    let token_id = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    // Setup blend pool
+    let interest_rate_bps = 1000u32;
+    let pool_contract_id = env.register(
+        YieldPoolSimulator,
+        (&token_id.address(), &interest_rate_bps),
+    );
+    token_admin_client.set_admin(&pool_contract_id);
+
+    // Setup escrow contract
+    let admin = Address::generate(&env);
+    let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
+    let maturity_date = 1000000u64;
+
+    let escrow_contract_id = env.register(
+        EscrowContract,
+        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
+    );
+    let escrow_client = EscrowContractClient::new(&env, &escrow_contract_id);
+
+    // Get PT and YT token addresses
+    let pt_token_address = escrow_client.get_pt_token();
+    let yt_token_address = escrow_client.get_yt_token();
+    let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+    let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+
+    // Create multiple users
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    token_admin_client.mint(&user1, &1_000_000);
+    token_admin_client.mint(&user2, &500_000);
+
+    // User1 deposits
+    escrow_client.deposit(&user1, &100_000);
+    let user1_pt = pt_client.balance(&user1);
+    let user1_yt = yt_client.balance(&user1);
+    assert_eq!(user1_pt, user1_yt);
+
+    // User2 deposits
+    escrow_client.deposit(&user2, &50_000);
+    let user2_pt = pt_client.balance(&user2);
+    let user2_yt = yt_client.balance(&user2);
+    assert_eq!(user2_pt, user2_yt);
+}
+
+#[test]
+fn test_pt_yt_tokens_retrievable() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Setup token
+    let token_id = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    // Setup blend pool
+    let interest_rate_bps = 1000u32;
+    let pool_contract_id = env.register(
+        YieldPoolSimulator,
+        (&token_id.address(), &interest_rate_bps),
+    );
+    token_admin_client.set_admin(&pool_contract_id);
+
+    // Setup escrow contract
+    let admin = Address::generate(&env);
+    let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
+    let maturity_date = 1000000u64;
+
+    let escrow_contract_id = env.register(
+        EscrowContract,
+        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
+    );
+    let escrow_client = EscrowContractClient::new(&env, &escrow_contract_id);
+
+    // Verify we can retrieve PT and YT token addresses via getters
+    let pt_token_address = escrow_client.get_pt_token();
+    let yt_token_address = escrow_client.get_yt_token();
+
+    // Verify addresses are different
+    assert_ne!(pt_token_address, yt_token_address);
+
+    // Verify we can create clients with these addresses
+    let _pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+    let _yt_client = YieldTokenClient::new(&env, &yt_token_address);
+}
+
+#[test]
+fn test_multiple_deposits_pt_yt_accumulation() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Setup token
+    let token_id = env.register_stellar_asset_contract_v2(Address::generate(&env));
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    // Setup blend pool
+    let interest_rate_bps = 1000u32;
+    let pool_contract_id = env.register(
+        YieldPoolSimulator,
+        (&token_id.address(), &interest_rate_bps),
+    );
+    token_admin_client.set_admin(&pool_contract_id);
+
+    // Setup escrow contract
+    let admin = Address::generate(&env);
+    let sy_wasm_hash = env.deployer().upload_contract_wasm(standardized_yield_wasm::WASM);
+    let pt_wasm_hash = env.deployer().upload_contract_wasm(principal_token_wasm::WASM);
+    let yt_wasm_hash = env.deployer().upload_contract_wasm(yield_token_wasm::WASM);
+    let adapter_wasm_hash = env.deployer().upload_contract_wasm(blend_adapter_wasm::WASM);
+    let maturity_date = 1000000u64;
+
+    let escrow_contract_id = env.register(
+        EscrowContract,
+        (&admin, &pool_contract_id, &token_id.address(), &sy_wasm_hash, &pt_wasm_hash, &yt_wasm_hash, &adapter_wasm_hash, &maturity_date),
+    );
+    let escrow_client = EscrowContractClient::new(&env, &escrow_contract_id);
+
+    // Get PT and YT token addresses
+    let pt_token_address = escrow_client.get_pt_token();
+    let yt_token_address = escrow_client.get_yt_token();
+    let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+    let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+
+    // Create user and mint tokens
+    let user = Address::generate(&env);
+    token_admin_client.mint(&user, &1_000_000);
+
+    // First deposit
+    escrow_client.deposit(&user, &50_000);
+    let pt_balance_1 = pt_client.balance(&user);
+    let yt_balance_1 = yt_client.balance(&user);
+
+    // Second deposit
+    escrow_client.deposit(&user, &30_000);
+    let pt_balance_2 = pt_client.balance(&user);
+    let yt_balance_2 = yt_client.balance(&user);
+
+    // Verify balances accumulated
+    assert_eq!(pt_balance_2, pt_balance_1 + 30_000);
+    assert_eq!(yt_balance_2, yt_balance_1 + 30_000);
+    assert_eq!(pt_balance_2, yt_balance_2);
 }

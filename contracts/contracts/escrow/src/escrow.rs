@@ -1,9 +1,28 @@
 use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env};
 use crate::utils::deployments;
 use adapter_trait::YieldAdapterClient;
-use standardized_yield::StandardizedYieldClient;
-use principal_token::PrincipalTokenClient;
-use yield_token::YieldTokenClient;
+
+mod standardized_yield {
+    soroban_sdk::contractimport!(
+        file = "../../wasms/standardized_yield.wasm"
+    );
+}
+
+mod principal_token {
+    soroban_sdk::contractimport!(
+        file = "../../wasms/principal_token.wasm"
+    );
+}
+
+mod yield_token {
+    soroban_sdk::contractimport!(
+        file = "../../wasms/yield_token.wasm"
+    );
+}
+
+use standardized_yield::Client as StandardizedYieldClient;
+use principal_token::Client as PrincipalTokenClient;
+use yield_token::Client as YieldTokenClient;
 
 #[contracttype]
 pub enum DataKey { // TODO: Is storing WASMs like this good practice? We'll find out eventually I guess
@@ -39,6 +58,10 @@ impl EscrowContract {
 
     pub fn get_yt_token(env: Env) -> Address {
         env.storage().instance().get(&DataKey::YTToken).expect("YT token not deployed")
+    }
+
+    pub fn get_adapter(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Adapter).expect("Adapter not deployed")
     }
 
     pub fn __constructor(
@@ -172,8 +195,7 @@ impl EscrowContract {
         let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
         pt_client.mint(&user, &pt_amount);
 
-        // Mint YT tokens in the same way and quantity as PT tokens
         let yt_client = YieldTokenClient::new(&env, &yt_token_address);
-        yt_client.mint(&user, &pt_amount); // User gets the same amount of pt and yt
+        yt_client.mint(&user, &pt_amount); // These should be interchangeable 
     }
 }

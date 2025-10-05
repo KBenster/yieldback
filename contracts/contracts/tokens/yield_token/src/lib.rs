@@ -1,6 +1,8 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
+use soroban_sdk::{contracttype, Address, Env, String};
 
+#[cfg(feature = "contract")]
+use soroban_sdk::{contract, contractimpl};
 
 #[contracttype]
 #[derive(Clone)]
@@ -19,9 +21,11 @@ pub trait YieldTokenTrait {
     fn symbol(env: Env) -> String;
 }
 
+#[cfg(feature = "contract")]
 #[contract]
 pub struct YieldToken;
 
+#[cfg(feature = "contract")]
 #[contractimpl]
 impl YieldTokenTrait for YieldToken {
      fn __constructor(
@@ -30,8 +34,6 @@ impl YieldTokenTrait for YieldToken {
         name: String,
         symbol: String,
     ) {
-        admin.require_auth();
-
         let metadata = TokenMetadata {
             name,
             symbol,

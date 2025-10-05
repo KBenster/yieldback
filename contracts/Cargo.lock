@@ -531,10 +531,7 @@ name = "escrow"
 version = "0.1.0"
 dependencies = [
  "adapter_trait",
- "principal_token",
  "soroban-sdk",
- "standardized_yield",
- "yield_token",
 ]
 
 [[package]]
@@ -1464,9 +1461,11 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "escrow",
+ "principal_token",
  "soroban-sdk",
  "standardized_yield",
  "yield-pool-sim",
+ "yield_token",
 ]
 
 [[package]]

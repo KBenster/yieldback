@@ -9,9 +9,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 soroban-sdk = { workspace = true }
 adapter_trait = { path = "../adapter/traits" }
-standardized_yield = { path = "../tokens/standardized_yield" }
-principal_token = { path = "../tokens/principal_token" }
-yield_token = { path = "../tokens/yield_token" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
