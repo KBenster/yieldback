@@ -531,7 +531,10 @@ name = "escrow"
 version = "0.1.0"
 dependencies = [
  "adapter_trait",
+ "principal_token",
  "soroban-sdk",
+ "standardized_yield",
+ "yield_token",
 ]
 
 [[package]]
@@ -1707,6 +1710,13 @@ name = "yield_sim_adapter"
 version = "0.1.0"
 dependencies = [
  "adapter_trait",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "yield_token"
+version = "0.1.0"
+dependencies = [
  "soroban-sdk",
 ]
 

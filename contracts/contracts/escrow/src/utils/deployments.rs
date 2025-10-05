@@ -1,5 +1,49 @@
 use soroban_sdk::{Address, Bytes, BytesN, Env, IntoVal, String};
 
+pub struct DeploymentAddresses {
+    pub adapter: Address,
+    pub sy_token: Address,
+    pub pt_token: Address,
+    pub yt_token: Address,
+}
+
+pub fn deploy_all(
+    env: &Env,
+    admin: Address,
+    blend_pool: Address,
+    token: Address,
+    adapter_wasm_hash: BytesN<32>,
+    sy_wasm_hash: BytesN<32>,
+    pt_wasm_hash: BytesN<32>,
+    yt_wasm_hash: BytesN<32>,
+    maturity_date: u64,
+) -> DeploymentAddresses {
+    // Deploy adapter contract
+    let adapter = deploy_adapter(env, adapter_wasm_hash, blend_pool, token);
+
+    // Deploy SY token
+    let sy_name = String::from_str(&env, "TODO");
+    let sy_symbol = String::from_str(&env, "TODO");
+    let sy_token = deploy_sy_token(env, admin.clone(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
+
+    // Deploy PT token
+    let pt_name = String::from_str(&env, "TODO");
+    let pt_symbol = String::from_str(&env, "TODO");
+    let pt_token = deploy_pt_token(env, admin.clone(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
+
+    // Deploy YT token
+    let yt_name = String::from_str(&env, "TODO");
+    let yt_symbol = String::from_str(&env, "TODO");
+    let yt_token = deploy_yt_token(env, admin, yt_wasm_hash, yt_name, yt_symbol, maturity_date);
+
+    DeploymentAddresses {
+        adapter,
+        sy_token,
+        pt_token,
+        yt_token,
+    }
+}
+
 pub fn deploy_adapter(env: &Env, wasm_hash: BytesN<32>, yield_protocol: Address, token: Address) -> Address {
     // Create salt for adapter deployment
     let mut salt_bytes = Bytes::new(&env);

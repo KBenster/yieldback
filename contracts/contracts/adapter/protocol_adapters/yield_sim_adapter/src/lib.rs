@@ -65,4 +65,8 @@ impl YieldAdapter for YieldSimAdapter {
             .get(&DataKey::Token)
             .expect("Not initialized")
     }
+
+    fn get_assets(env: Env) -> i128 {
+            todo!()
+    }
 }

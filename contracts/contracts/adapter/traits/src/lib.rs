@@ -21,4 +21,7 @@ pub trait YieldAdapter {
 
     /// Get the configured token address
     fn get_token(env: Env) -> Address;
+
+    /// Get the total assets managed by this adapter
+    fn get_assets(env: Env) -> i128;
 }

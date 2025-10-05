@@ -8,12 +8,22 @@ pub struct TokenMetadata {
     pub symbol: String,
 }
 
+pub trait PrincipalTokenTrait {
+    fn __constructor(env: Env, admin: Address, name: String, symbol: String);
+    fn mint(env: Env, to: Address, amount: i128);
+    fn transfer(env: Env, from: Address, to: Address, amount: i128);
+    fn balance(env: Env, address: Address) -> i128;
+    fn total_supply(env: Env) -> i128;
+    fn name(env: Env) -> String;
+    fn symbol(env: Env) -> String;
+}
+
 #[contract]
 pub struct PrincipalToken;
 
 #[contractimpl]
-impl PrincipalToken {
-    pub fn __constructor(
+impl PrincipalTokenTrait for PrincipalToken {
+     fn __constructor(
         env: Env,
         admin: Address,
         name: String,
@@ -30,7 +40,7 @@ impl PrincipalToken {
         env.storage().instance().set(&"metadata", &metadata);
     }
 
-    pub fn mint(env: Env, to: Address, amount: i128) {
+     fn mint(env: Env, to: Address, amount: i128) {
         let admin: Address = env.storage().instance().get(&"admin").unwrap();
         admin.require_auth();
 
@@ -41,7 +51,7 @@ impl PrincipalToken {
         env.storage().instance().set(&"total_supply", &(total_supply + amount));
     }
 
-    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+     fn transfer(env: Env, from: Address, to: Address, amount: i128) {
         from.require_auth();
 
         let from_balance = Self::balance(env.clone(), from.clone());
@@ -55,20 +65,20 @@ impl PrincipalToken {
         env.storage().persistent().set(&to, &(to_balance + amount));
     }
 
-    pub fn balance(env: Env, address: Address) -> i128 {
+     fn balance(env: Env, address: Address) -> i128 {
         env.storage().persistent().get(&address).unwrap_or(0)
     }
 
-    pub fn total_supply(env: Env) -> i128 {
+     fn total_supply(env: Env) -> i128 {
         env.storage().instance().get(&"total_supply").unwrap_or(0)
     }
 
-    pub fn name(env: Env) -> String {
+     fn name(env: Env) -> String {
         let metadata: TokenMetadata = env.storage().instance().get(&"metadata").unwrap();
         metadata.name
     }
 
-    pub fn symbol(env: Env) -> String {
+     fn symbol(env: Env) -> String {
         let metadata: TokenMetadata = env.storage().instance().get(&"metadata").unwrap();
         metadata.symbol
     }

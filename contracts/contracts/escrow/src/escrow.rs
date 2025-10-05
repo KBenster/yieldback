@@ -1,6 +1,9 @@
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, IntoVal};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env};
 use crate::utils::deployments;
 use adapter_trait::YieldAdapterClient;
+use standardized_yield::StandardizedYieldClient;
+use principal_token::PrincipalTokenClient;
+use yield_token::YieldTokenClient;
 
 #[contracttype]
 pub enum DataKey { // TODO: Is storing WASMs like this good practice? We'll find out eventually I guess
@@ -55,27 +58,23 @@ impl EscrowContract {
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::MaturityDate, &maturity_date);
 
-        // Deploy adapter contract
-        let adapter_address = deployments::deploy_adapter(&env, adapter_wasm_hash, blend_pool.clone(), token.clone());
-        env.storage().instance().set(&DataKey::Adapter, &adapter_address);
+        // Deploy all contracts
+        let addresses = deployments::deploy_all(
+            &env,
+            env.current_contract_address(),
+            blend_pool,
+            token,
+            adapter_wasm_hash,
+            sy_wasm_hash,
+            pt_wasm_hash,
+            yt_wasm_hash,
+            maturity_date,
+        );
 
-        // Deploy SY token
-        let sy_name = soroban_sdk::String::from_str(&env, "TODO");
-        let sy_symbol = soroban_sdk::String::from_str(&env, "TODO");
-        let sy_token_address = deployments::deploy_sy_token(&env, env.current_contract_address(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
-        env.storage().instance().set(&DataKey::SYToken, &sy_token_address);
-
-        // Deploy PT token
-        let pt_name = soroban_sdk::String::from_str(&env, "TODO");
-        let pt_symbol = soroban_sdk::String::from_str(&env, "TODO");
-        let pt_token_address = deployments::deploy_pt_token(&env, env.current_contract_address(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
-        env.storage().instance().set(&DataKey::PTToken, &pt_token_address);
-
-        // Deploy YT token
-        let yt_name = soroban_sdk::String::from_str(&env, "TODO");
-        let yt_symbol = soroban_sdk::String::from_str(&env, "TODO");
-        let yt_token_address = deployments::deploy_yt_token(&env, env.current_contract_address(), yt_wasm_hash, yt_name, yt_symbol, maturity_date);
-        env.storage().instance().set(&DataKey::YTToken, &yt_token_address);
+        env.storage().instance().set(&DataKey::Adapter, &addresses.adapter);
+        env.storage().instance().set(&DataKey::SYToken, &addresses.sy_token);
+        env.storage().instance().set(&DataKey::PTToken, &addresses.pt_token);
+        env.storage().instance().set(&DataKey::YTToken, &addresses.yt_token);
     }
 }
 
@@ -96,18 +95,6 @@ impl Escrow for EscrowContract {
             .get(&DataKey::Adapter)
             .expect("Not initialized");
 
-        let sy_token_address: Address = env.storage().instance()
-            .get(&DataKey::SYToken)
-            .expect("Not initialized");
-
-        let pt_token_address: Address = env.storage().instance()
-            .get(&DataKey::PTToken)
-            .expect("Not initialized");
-
-        let yt_token_address: Address = env.storage().instance()
-            .get(&DataKey::YTToken)
-            .expect("Not initialized");
-
         let token = token::Client::new(&env, &token_address);
 
         // Transfer tokens from user to escrow contract
@@ -118,30 +105,75 @@ impl Escrow for EscrowContract {
         adapter_client.deposit(&env.current_contract_address(), &amount);
 
         // syAmount = assetAmount / exchangeRate
-        let exchange_rate: i128 = 1; // At the start, 1 SY = 1 asset. As yield accrues, the exchange rate increases proportionally.
-        let sy_amount = amount / exchange_rate;
+        let sy_amount = amount / Self::get_current_exchange_index(env.clone());
 
         // Mint SY tokens to the escrow contract
-        env.invoke_contract::<()>(
-            &sy_token_address,
-            &soroban_sdk::symbol_short!("mint"),
-            (env.current_contract_address(), sy_amount).into_val(&env)
-        );
+        Self::mint_sy(env.clone(), sy_amount);
+
+        // Mint PT and YT tokens to the user
+        Self::mint_pt_and_yt(env, user, sy_amount);
+    }
+}
+
+#[contractimpl]
+impl EscrowContract {
+    /// Get the current exchange index
+    /// Formula: PY Index = total_assets / total_shares
+    /// Initially returns 1 when no shares exist
+    pub fn get_current_exchange_index(env: Env) -> i128 {
+        let adapter_address: Address = env.storage().instance()
+            .get(&DataKey::Adapter)
+            .expect("Not initialized");
+
+        let sy_token_address: Address = env.storage().instance()
+            .get(&DataKey::SYToken)
+            .expect("Not initialized");
+
+        // Get total assets from adapter
+        let adapter_client = YieldAdapterClient::new(&env, &adapter_address);
+        let total_assets = adapter_client.get_assets();
+
+        // Get total shares (SY token supply)
+        let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
+        let total_shares = sy_client.total_supply();
+
+        // If no shares exist yet, return initial index of 1
+        if total_shares == 0 {
+            return 1;
+        }
+
+        // Calculate exchange index: total_assets / total_shares
+        total_assets / total_shares
+    }
+
+    /// Mints SY tokens to the escrow contract
+    fn mint_sy(env: Env, sy_amount: i128) {
+        let sy_token_address: Address = env.storage().instance()
+            .get(&DataKey::SYToken)
+            .expect("Not initialized");
+
+        let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
+        sy_client.mint(&env.current_contract_address(), &sy_amount);
+    }
+
+    /// Mints PT and YT tokens to the user based on the SY amount
+    fn mint_pt_and_yt(env: Env, user: Address, sy_amount: i128) {
+        let pt_token_address: Address = env.storage().instance()
+            .get(&DataKey::PTToken)
+            .expect("Not initialized");
+
+        let yt_token_address: Address = env.storage().instance()
+            .get(&DataKey::YTToken)
+            .expect("Not initialized");
 
         // Mint PT tokens based on SY quantity * index
-        let index: i128 = 1; // TODO: Replace with actual index calculation
-        let pt_amount = sy_amount * index;
-        env.invoke_contract::<()>(
-            &pt_token_address,
-            &soroban_sdk::symbol_short!("mint"),
-            (user.clone(), pt_amount).into_val(&env)
-        );
+        let pt_amount = sy_amount * Self::get_current_exchange_index(env.clone()); // Interchangeable for PT and YT quantities
+
+        let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+        pt_client.mint(&user, &pt_amount);
 
         // Mint YT tokens in the same way and quantity as PT tokens
-        env.invoke_contract::<()>(
-            &yt_token_address,
-            &soroban_sdk::symbol_short!("mint"),
-            (user.clone(), pt_amount).into_val(&env)
-        );
+        let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+        yt_client.mint(&user, &pt_amount); // User gets the same amount of pt and yt
     }
 }
