@@ -1,5 +1,6 @@
 use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, IntoVal};
-use crate::utils::token_deployment;
+use crate::utils::deployments;
+use adapter_trait::YieldAdapterClient;
 
 #[contracttype]
 pub enum DataKey { // TODO: Is storing WASMs like this good practice? We'll find out eventually I guess
@@ -12,6 +13,8 @@ pub enum DataKey { // TODO: Is storing WASMs like this good practice? We'll find
     YTToken,
     YTWasmHash,
     MaturityDate,
+    Adapter,
+    AdapterWasmHash,
 }
 
 pub trait Escrow {
@@ -43,6 +46,7 @@ impl EscrowContract {
         sy_wasm_hash: BytesN<32>,
         pt_wasm_hash: BytesN<32>,
         yt_wasm_hash: BytesN<32>,
+        adapter_wasm_hash: BytesN<32>,
         maturity_date: u64,
     ) {
         admin.require_auth();
@@ -51,22 +55,26 @@ impl EscrowContract {
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::MaturityDate, &maturity_date);
 
+        // Deploy adapter contract
+        let adapter_address = deployments::deploy_adapter(&env, adapter_wasm_hash, blend_pool.clone(), token.clone());
+        env.storage().instance().set(&DataKey::Adapter, &adapter_address);
+
         // Deploy SY token
         let sy_name = soroban_sdk::String::from_str(&env, "TODO");
         let sy_symbol = soroban_sdk::String::from_str(&env, "TODO");
-        let sy_token_address = token_deployment::deploy_sy_token(&env, env.current_contract_address(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
+        let sy_token_address = deployments::deploy_sy_token(&env, env.current_contract_address(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
         env.storage().instance().set(&DataKey::SYToken, &sy_token_address);
 
         // Deploy PT token
         let pt_name = soroban_sdk::String::from_str(&env, "TODO");
         let pt_symbol = soroban_sdk::String::from_str(&env, "TODO");
-        let pt_token_address = token_deployment::deploy_pt_token(&env, env.current_contract_address(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
+        let pt_token_address = deployments::deploy_pt_token(&env, env.current_contract_address(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
         env.storage().instance().set(&DataKey::PTToken, &pt_token_address);
 
         // Deploy YT token
         let yt_name = soroban_sdk::String::from_str(&env, "TODO");
         let yt_symbol = soroban_sdk::String::from_str(&env, "TODO");
-        let yt_token_address = token_deployment::deploy_yt_token(&env, env.current_contract_address(), yt_wasm_hash, yt_name, yt_symbol, maturity_date);
+        let yt_token_address = deployments::deploy_yt_token(&env, env.current_contract_address(), yt_wasm_hash, yt_name, yt_symbol, maturity_date);
         env.storage().instance().set(&DataKey::YTToken, &yt_token_address);
     }
 }
@@ -84,8 +92,8 @@ impl Escrow for EscrowContract {
             .get(&DataKey::Token)
             .expect("Not initialized");
 
-        let blend_pool_address: Address = env.storage().instance()
-            .get(&DataKey::BlendPool)
+        let adapter_address: Address = env.storage().instance()
+            .get(&DataKey::Adapter)
             .expect("Not initialized");
 
         let sy_token_address: Address = env.storage().instance()
@@ -105,12 +113,9 @@ impl Escrow for EscrowContract {
         // Transfer tokens from user to escrow contract
         token.transfer(&user, &env.current_contract_address(), &amount);
 
-        // Deposit into blend pool (this will transfer from escrow to pool)
-        env.invoke_contract::<()>(
-            &blend_pool_address,
-            &soroban_sdk::symbol_short!("deposit"),
-            (env.current_contract_address(), amount).into_val(&env)
-        );
+        // Deposit into yield protocol via adapter (this will transfer from escrow to adapter to pool)
+        let adapter_client = YieldAdapterClient::new(&env, &adapter_address);
+        adapter_client.deposit(&env.current_contract_address(), &amount);
 
         // syAmount = assetAmount / exchangeRate
         let exchange_rate: i128 = 1; // At the start, 1 SY = 1 asset. As yield accrues, the exchange rate increases proportionally.

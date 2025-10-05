@@ -1,9 +1,10 @@
 #![no_std]
 
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{contractclient, Address, Env};
 
 /// Common interface that all adapter contracts must implement
 /// Adapters bridge between the escrow contract and various yield-generating protocols
+#[contractclient(name = "YieldAdapterClient")]
 pub trait YieldAdapter {
     /// Initialize the adapter with the yield protocol address and token address
     fn __constructor(env: Env, yield_protocol: Address, token: Address);

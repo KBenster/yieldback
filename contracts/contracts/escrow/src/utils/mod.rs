@@ -1,1 +1,1 @@
-pub mod token_deployment;
+pub mod deployments;

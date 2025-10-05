@@ -1,4 +1,15 @@
-use soroban_sdk::{Address, Bytes, BytesN, Env, String};
+use soroban_sdk::{Address, Bytes, BytesN, Env, IntoVal, String};
+
+pub fn deploy_adapter(env: &Env, wasm_hash: BytesN<32>, yield_protocol: Address, token: Address) -> Address {
+    // Create salt for adapter deployment
+    let mut salt_bytes = Bytes::new(&env);
+    salt_bytes.extend_from_array(&[0xAD]); // Prefix for adapter
+    let salt = env.crypto().keccak256(&salt_bytes);
+
+    // Deploy adapter contract - __constructor is automatically called with the init args
+    env.deployer().with_current_contract(salt)
+        .deploy_v2(wasm_hash, (yield_protocol, token))
+}
 
 pub fn deploy_sy_token(env: &Env, admin: Address, wasm_hash: BytesN<32>, name: String, symbol: String, maturity_date: u64) -> Address {
     // Create salt from maturity date
