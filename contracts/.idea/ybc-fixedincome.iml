@@ -27,7 +27,9 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/interfaces/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/simulation/yield-pool-sim/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/tokens/yield_token/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/contracts/test_adapters/mock_adapter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_adapter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_token/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_yield_protocol/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

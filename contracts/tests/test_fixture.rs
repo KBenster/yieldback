@@ -1,12 +1,16 @@
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
-    Address, Env, String as SorobanString, BytesN,
+    Address, Env, String as SorobanString,
 };
 
 use escrow::{EscrowContract, EscrowContractClient};
 use escrow::escrow::MarketInitMeta;
-use crate::mock_adapter::{MockAdapterClient, WASM as MOCK_ADAPTER_WASM};
-use crate::mock_token::{create_mock_token, MockTokenClient};
+use crate::{
+    MockTokenClient, MOCK_TOKEN_WASM,
+    MockAdapterClient, MOCK_ADAPTER_WASM,
+    MockYieldProtocolClient, MOCK_YIELD_PROTOCOL_WASM,
+    SY_WASM, PT_WASM, YT_WASM,
+};
 
 pub const SCALAR_7: i128 = 1_000_0000;
 
@@ -17,7 +21,8 @@ pub struct TestFixture<'a> {
     pub escrow: EscrowContractClient<'a>,
     pub token: MockTokenClient<'a>,
     pub token_address: Address,
-    pub yield_source: Address,
+    pub yield_protocol: MockYieldProtocolClient<'a>,
+    pub yield_protocol_address: Address,
     pub adapter: MockAdapterClient<'a>,
     pub adapter_address: Address,
     pub sy_token_address: Address,
@@ -46,11 +51,34 @@ impl TestFixture<'_> {
             max_entry_ttl: 9999999,
         });
 
-        // Create mock token
-        let (token_address, token_client) = create_mock_token(&env, &admin);
+        // Deploy mock token using WASM
+        let token_address = env.register(
+            MOCK_TOKEN_WASM,
+            (
+                &admin,
+                &SorobanString::from_str(&env, "Test Token"),
+                &SorobanString::from_str(&env, "TEST"),
+                &7u32,
+            ),
+        );
+        let token = MockTokenClient::new(&env, &token_address);
 
-        // Create yield source address (e.g., Blend pool)
-        let yield_source = Address::generate(&env);
+        // Deploy mock yield protocol with 5% APY and 100M token reserve
+        let initial_reserve = 100_000_000 * SCALAR_7; // 100M tokens for paying yield
+
+        // Mint tokens to admin for funding the protocol
+        token.mint(&admin, &initial_reserve);
+
+        let yield_protocol_address = env.register(
+            MOCK_YIELD_PROTOCOL_WASM,
+            (
+                &token_address,
+                &500u32,              // 5% APY
+                &admin,
+                &initial_reserve,
+            ),
+        );
+        let yield_protocol = MockYieldProtocolClient::new(&env, &yield_protocol_address);
 
         // Upload contract WASMs once - following Blend's pattern
         let adapter_wasm_hash = env.deployer().upload_contract_wasm(MOCK_ADAPTER_WASM);
@@ -63,7 +91,7 @@ impl TestFixture<'_> {
 
         // Create market metadata
         let market_meta = MarketInitMeta {
-            yield_source: yield_source.clone(),
+            yield_source: yield_protocol_address.clone(),
             token: token_address.clone(),
             sy_wasm_hash: sy_wasm_hash.clone(),
             pt_wasm_hash: pt_wasm_hash.clone(),
@@ -106,9 +134,10 @@ impl TestFixture<'_> {
             admin,
             user,
             escrow,
-            token: token_client,
+            token,
             token_address,
-            yield_source,
+            yield_protocol,
+            yield_protocol_address,
             adapter,
             adapter_address,
             sy_token_address,

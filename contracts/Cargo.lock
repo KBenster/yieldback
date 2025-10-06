@@ -794,6 +794,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
+name = "mock_adapter"
+version = "0.1.0"
+dependencies = [
+ "adapter_trait",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "mock_token"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "mock_yield_protocol"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1462,6 +1484,9 @@ version = "0.1.0"
 dependencies = [
  "adapter_trait",
  "escrow",
+ "mock_adapter",
+ "mock_token",
+ "mock_yield_protocol",
  "principal_token",
  "soroban-sdk",
  "standardized_yield",
