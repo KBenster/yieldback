@@ -196,6 +196,40 @@ impl EscrowContract {
         pt_client.mint(&user, &pt_amount);
 
         let yt_client = YieldTokenClient::new(&env, &yt_token_address);
-        yt_client.mint(&user, &pt_amount); // These should be interchangeable 
+        yt_client.mint(&user, &pt_amount); // These should be interchangeable
+    }
+
+    /// PT Redemption
+    pub fn redeem_principal(env: Env, user: Address, amount: i128) {
+        user.require_auth();
+
+        let maturity_date: u64 = env.storage().instance()
+            .get(&DataKey::MaturityDate)
+            .expect("Not initialized");
+
+        if env.ledger().timestamp() < maturity_date {
+            panic!("Cannot redeem before maturity");
+        }
+
+        let pt_token_address: Address = env.storage().instance()
+            .get(&DataKey::PTToken)
+            .expect("Not initialized");
+
+        let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+        pt_client.burn(&user, &amount);
+
+        // Calculate SY amount to redeem: PT amount / yield index
+        let sy_amount = amount / Self::get_current_exchange_index(env.clone());
+
+        // Calculate underlying asset amount to withdraw: SY amount * exchange rate
+        let withdraw_amount = sy_amount * Self::get_current_exchange_index(env.clone());
+
+        // Withdraw from the adapter
+        let adapter_address: Address = env.storage().instance()
+            .get(&DataKey::Adapter)
+            .expect("Not initialized");
+
+        let adapter_client = YieldAdapterClient::new(&env, &adapter_address);
+        adapter_client.withdraw(&withdraw_amount);
     }
 }

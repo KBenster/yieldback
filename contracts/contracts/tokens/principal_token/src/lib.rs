@@ -14,6 +14,7 @@ pub struct TokenMetadata {
 pub trait PrincipalTokenTrait {
     fn __constructor(env: Env, admin: Address, name: String, symbol: String);
     fn mint(env: Env, to: Address, amount: i128);
+    fn burn(env: Env, from: Address, amount: i128);
     fn transfer(env: Env, from: Address, to: Address, amount: i128);
     fn balance(env: Env, address: Address) -> i128;
     fn total_supply(env: Env) -> i128;
@@ -52,6 +53,21 @@ impl PrincipalTokenTrait for PrincipalToken {
 
         let total_supply: i128 = env.storage().instance().get(&"total_supply").unwrap_or(0);
         env.storage().instance().set(&"total_supply", &(total_supply + amount));
+    }
+
+     fn burn(env: Env, from: Address, amount: i128) {
+        let admin: Address = env.storage().instance().get(&"admin").unwrap();
+        admin.require_auth();
+
+        let balance = Self::balance(env.clone(), from.clone());
+        if balance < amount {
+            panic!("Insufficient balance");
+        }
+
+        env.storage().persistent().set(&from, &(balance - amount));
+
+        let total_supply: i128 = env.storage().instance().get(&"total_supply").unwrap_or(0);
+        env.storage().instance().set(&"total_supply", &(total_supply - amount));
     }
 
      fn transfer(env: Env, from: Address, to: Address, amount: i128) {

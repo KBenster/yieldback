@@ -6,8 +6,8 @@ use soroban_sdk::{contractclient, Address, Env};
 /// Adapters bridge between the escrow contract and various yield-generating protocols
 #[contractclient(name = "YieldAdapterClient")]
 pub trait YieldAdapter {
-    /// Initialize the adapter with the yield protocol address and token address
-    fn __constructor(env: Env, yield_protocol: Address, token: Address);
+    /// Initialize the adapter with the escrow contract, yield protocol address and token address
+    fn __constructor(env: Env, escrow: Address, yield_protocol: Address, token: Address);
 
     /// Receive funds from escrow and forward them to the underlying yield protocol
     ///
@@ -15,6 +15,12 @@ pub trait YieldAdapter {
     /// * `depositor` - The address depositing funds (typically the escrow contract)
     /// * `amount` - The amount to deposit
     fn deposit(env: Env, depositor: Address, amount: i128);
+
+    /// Withdraw funds from the underlying yield protocol to the escrow contract
+    ///
+    /// # Arguments
+    /// * `amount` - The amount to withdraw
+    fn withdraw(env: Env, amount: i128);
 
     /// Get the configured yield protocol address
     fn get_yield_protocol(env: Env) -> Address;
