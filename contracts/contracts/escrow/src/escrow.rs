@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, String};
 use crate::utils::deployments;
 use adapter_trait::YieldAdapterClient;
 
@@ -25,18 +25,26 @@ use principal_token::Client as PrincipalTokenClient;
 use yield_token::Client as YieldTokenClient;
 
 #[contracttype]
-pub enum DataKey { // TODO: Is storing WASMs like this good practice? We'll find out eventually I guess
-    BlendPool,
-    Token,
-    SYToken,
-    SYWasmHash,
-    PTToken,
-    PTWasmHash,
-    YTToken,
-    YTWasmHash,
+pub struct MarketInitMeta {
+    pub yield_source: Address,
+    pub token: Address,
+    pub sy_wasm_hash: BytesN<32>,
+    pub pt_wasm_hash: BytesN<32>,
+    pub yt_wasm_hash: BytesN<32>,
+    pub adapter_wasm_hash: BytesN<32>,
+}
+
+#[contracttype]
+pub enum DataKey {
+    MarketMeta,
     MaturityDate,
     Adapter,
-    AdapterWasmHash,
+    SYToken,
+    PTToken,
+    YTToken,
+    YieldSource,
+    Token,
+    IsDeployed,
 }
 
 pub trait Escrow {
@@ -64,40 +72,80 @@ impl EscrowContract {
         env.storage().instance().get(&DataKey::Adapter).expect("Adapter not deployed")
     }
 
-    pub fn __constructor(
+    /// Constructor - Only stores WASM hashes and configuration
+    /// Deployment happens in separate deploy_market() function
+    pub fn __constructor(env: Env, admin: Address, market_meta: MarketInitMeta) {
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::MarketMeta, &market_meta);
+        env.storage().instance().set(&DataKey::IsDeployed, &false);
+    }
+
+    /// Deploy the market with the specified maturity date and token metadata
+    /// Can only be called once per escrow instance
+    pub fn deploy_market(
         env: Env,
         admin: Address,
-        blend_pool: Address,
-        token: Address,
-        sy_wasm_hash: BytesN<32>,
-        pt_wasm_hash: BytesN<32>,
-        yt_wasm_hash: BytesN<32>,
-        adapter_wasm_hash: BytesN<32>,
         maturity_date: u64,
+        sy_name: String,
+        sy_symbol: String,
+        pt_name: String,
+        pt_symbol: String,
+        yt_name: String,
+        yt_symbol: String,
     ) {
         admin.require_auth();
 
-        env.storage().instance().set(&DataKey::BlendPool, &blend_pool);
-        env.storage().instance().set(&DataKey::Token, &token);
-        env.storage().instance().set(&DataKey::MaturityDate, &maturity_date);
+        // Check if already deployed
+        let is_deployed: bool = env.storage().instance()
+            .get(&DataKey::IsDeployed)
+            .unwrap_or(false);
 
-        // Deploy all contracts
+        if is_deployed {
+            panic!("Market already deployed");
+        }
+
+        // Get stored metadata
+        let market_meta: MarketInitMeta = env.storage().instance()
+            .get(&DataKey::MarketMeta)
+            .expect("Not initialized");
+
+        // Store market configuration
+        env.storage().instance().set(&DataKey::MaturityDate, &maturity_date);
+        env.storage().instance().set(&DataKey::YieldSource, &market_meta.yield_source);
+        env.storage().instance().set(&DataKey::Token, &market_meta.token);
+
+        // Deploy all contracts with provided names
         let addresses = deployments::deploy_all(
             &env,
             env.current_contract_address(),
-            blend_pool,
-            token,
-            adapter_wasm_hash,
-            sy_wasm_hash,
-            pt_wasm_hash,
-            yt_wasm_hash,
+            market_meta.yield_source,
+            market_meta.token,
+            market_meta.adapter_wasm_hash,
+            market_meta.sy_wasm_hash,
+            market_meta.pt_wasm_hash,
+            market_meta.yt_wasm_hash,
             maturity_date,
+            sy_name,
+            sy_symbol,
+            pt_name,
+            pt_symbol,
+            yt_name,
+            yt_symbol,
         );
 
+        // Store deployed addresses
         env.storage().instance().set(&DataKey::Adapter, &addresses.adapter);
         env.storage().instance().set(&DataKey::SYToken, &addresses.sy_token);
         env.storage().instance().set(&DataKey::PTToken, &addresses.pt_token);
         env.storage().instance().set(&DataKey::YTToken, &addresses.yt_token);
+        env.storage().instance().set(&DataKey::IsDeployed, &true);
+    }
+
+    /// Check if market has been deployed
+    pub fn is_deployed(env: Env) -> bool {
+        env.storage().instance()
+            .get(&DataKey::IsDeployed)
+            .unwrap_or(false)
     }
 }
 

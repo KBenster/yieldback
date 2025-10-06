@@ -10,30 +10,30 @@ pub struct DeploymentAddresses {
 pub fn deploy_all(
     env: &Env,
     escrow: Address,
-    blend_pool: Address,
+    yield_source: Address,
     token: Address,
     adapter_wasm_hash: BytesN<32>,
     sy_wasm_hash: BytesN<32>,
     pt_wasm_hash: BytesN<32>,
     yt_wasm_hash: BytesN<32>,
     maturity_date: u64,
+    sy_name: String,
+    sy_symbol: String,
+    pt_name: String,
+    pt_symbol: String,
+    yt_name: String,
+    yt_symbol: String,
 ) -> DeploymentAddresses {
     // Deploy adapter contract
-    let adapter = deploy_adapter(env, adapter_wasm_hash, escrow.clone(), blend_pool, token);
+    let adapter = deploy_adapter(env, adapter_wasm_hash, escrow.clone(), yield_source, token);
 
     // Deploy SY token
-    let sy_name = String::from_str(&env, "TODO");
-    let sy_symbol = String::from_str(&env, "TODO");
     let sy_token = deploy_sy_token(env, escrow.clone(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
 
     // Deploy PT token
-    let pt_name = String::from_str(&env, "TODO");
-    let pt_symbol = String::from_str(&env, "TODO");
     let pt_token = deploy_pt_token(env, escrow.clone(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
 
     // Deploy YT token
-    let yt_name = String::from_str(&env, "TODO");
-    let yt_symbol = String::from_str(&env, "TODO");
     let yt_token = deploy_yt_token(env, escrow, yt_wasm_hash, yt_name, yt_symbol, maturity_date);
 
     DeploymentAddresses {

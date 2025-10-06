@@ -5,9 +5,7 @@ mod mock_token;
 mod test_fixture;
 
 use soroban_sdk::{testutils::Address as _, Address};
-use standardized_yield::StandardizedYieldClient;
-use principal_token::PrincipalTokenClient;
-use yield_token::YieldTokenClient;
+use test_suites::{StandardizedYieldClient, PrincipalTokenClient, YieldTokenClient};
 
 use test_fixture::{TestFixture, SCALAR_7};
 

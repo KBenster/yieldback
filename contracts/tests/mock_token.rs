@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
 
@@ -112,7 +111,7 @@ impl MockToken {
 
 /// Helper function to create a mock token for testing
 /// This deploys the token and the constructor is automatically called
-pub fn create_mock_token<'a>(env: &Env, admin: &Address) -> (Address, soroban_sdk::token::Client<'a>) {
+pub fn create_mock_token<'a>(env: &Env, admin: &Address) -> (Address, MockTokenClient<'a>) {
     let contract_id = Address::generate(env);
 
     // Register the contract with constructor arguments
@@ -128,7 +127,7 @@ pub fn create_mock_token<'a>(env: &Env, admin: &Address) -> (Address, soroban_sd
         ),
     );
 
-    let client = soroban_sdk::token::Client::new(env, &contract_id);
+    let client = MockTokenClient::new(env, &contract_id);
 
     (contract_id, client)
 }
