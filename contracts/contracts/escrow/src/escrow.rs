@@ -224,12 +224,20 @@ impl EscrowContract {
         // Calculate underlying asset amount to withdraw: SY amount * exchange rate
         let withdraw_amount = sy_amount * Self::get_current_exchange_index(env.clone());
 
-        // Withdraw from the adapter
+        // Withdraw from the adapter (transfers tokens to escrow contract)
         let adapter_address: Address = env.storage().instance()
             .get(&DataKey::Adapter)
             .expect("Not initialized");
 
         let adapter_client = YieldAdapterClient::new(&env, &adapter_address);
         adapter_client.withdraw(&withdraw_amount);
+
+        // Transfer the withdrawn tokens from escrow to user
+        let token_address: Address = env.storage().instance()
+            .get(&DataKey::Token)
+            .expect("Not initialized");
+
+        let token = token::Client::new(&env, &token_address);
+        token.transfer(&env.current_contract_address(), &user, &withdraw_amount);
     }
 }

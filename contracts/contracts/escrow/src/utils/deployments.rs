@@ -9,7 +9,7 @@ pub struct DeploymentAddresses {
 
 pub fn deploy_all(
     env: &Env,
-    admin: Address,
+    escrow: Address,
     blend_pool: Address,
     token: Address,
     adapter_wasm_hash: BytesN<32>,
@@ -19,22 +19,22 @@ pub fn deploy_all(
     maturity_date: u64,
 ) -> DeploymentAddresses {
     // Deploy adapter contract
-    let adapter = deploy_adapter(env, adapter_wasm_hash, blend_pool, token);
+    let adapter = deploy_adapter(env, adapter_wasm_hash, escrow.clone(), blend_pool, token);
 
     // Deploy SY token
     let sy_name = String::from_str(&env, "TODO");
     let sy_symbol = String::from_str(&env, "TODO");
-    let sy_token = deploy_sy_token(env, admin.clone(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
+    let sy_token = deploy_sy_token(env, escrow.clone(), sy_wasm_hash, sy_name, sy_symbol, maturity_date);
 
     // Deploy PT token
     let pt_name = String::from_str(&env, "TODO");
     let pt_symbol = String::from_str(&env, "TODO");
-    let pt_token = deploy_pt_token(env, admin.clone(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
+    let pt_token = deploy_pt_token(env, escrow.clone(), pt_wasm_hash, pt_name, pt_symbol, maturity_date);
 
     // Deploy YT token
     let yt_name = String::from_str(&env, "TODO");
     let yt_symbol = String::from_str(&env, "TODO");
-    let yt_token = deploy_yt_token(env, admin, yt_wasm_hash, yt_name, yt_symbol, maturity_date);
+    let yt_token = deploy_yt_token(env, escrow, yt_wasm_hash, yt_name, yt_symbol, maturity_date);
 
     DeploymentAddresses {
         adapter,
@@ -44,7 +44,7 @@ pub fn deploy_all(
     }
 }
 
-pub fn deploy_adapter(env: &Env, wasm_hash: BytesN<32>, yield_protocol: Address, token: Address) -> Address {
+pub fn deploy_adapter(env: &Env, wasm_hash: BytesN<32>, escrow: Address, yield_protocol: Address, token: Address) -> Address {
     // Create salt for adapter deployment
     let mut salt_bytes = Bytes::new(&env);
     salt_bytes.extend_from_array(&[0xAD]); // Prefix for adapter
@@ -52,7 +52,7 @@ pub fn deploy_adapter(env: &Env, wasm_hash: BytesN<32>, yield_protocol: Address,
 
     // Deploy adapter contract - __constructor is automatically called with the init args
     env.deployer().with_current_contract(salt)
-        .deploy_v2(wasm_hash, (yield_protocol, token))
+        .deploy_v2(wasm_hash, (escrow, yield_protocol, token))
 }
 
 pub fn deploy_sy_token(env: &Env, admin: Address, wasm_hash: BytesN<32>, name: String, symbol: String, maturity_date: u64) -> Address {
