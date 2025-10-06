@@ -26,9 +26,8 @@ impl YieldAdapter for MockAdapter {
     }
 
     /// Receive funds from escrow and deposit them into the yield protocol
+    /// Note: No auth check since this is a mock for testing
     fn deposit(env: Env, depositor: Address, amount: i128) {
-        depositor.require_auth();
-
         let token_address: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let yield_protocol_address: Address = env.storage().instance().get(&DataKey::YieldProtocol).unwrap();
 

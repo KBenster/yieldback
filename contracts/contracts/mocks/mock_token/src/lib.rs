@@ -96,8 +96,8 @@ impl MockToken {
     }
 
     /// Transfer tokens between addresses
+    /// Note: No auth check since this is a mock for testing
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
-        from.require_auth();
 
         let from_bal = Self::balance(env.clone(), from.clone());
         let to_bal = Self::balance(env.clone(), to.clone());

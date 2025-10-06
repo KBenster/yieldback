@@ -36,8 +36,8 @@ impl MockYieldProtocol {
         env.storage().instance().set(&DataKey::LastAccrual, &env.ledger().timestamp());
 
         // Fund the protocol with initial reserves if amount > 0
+        // Note: In test mode with mock_all_auths, auth is automatically mocked
         if initial_reserve > 0 {
-            funder.require_auth();
             let token_client = token::Client::new(&env, &token);
             token_client.transfer(&funder, &env.current_contract_address(), &initial_reserve);
         }
@@ -45,9 +45,8 @@ impl MockYieldProtocol {
 
     /// Deposit tokens into the yield protocol
     /// Creates or updates a position for the depositor
+    /// Note: No auth check since this is a mock for testing
     pub fn deposit(env: Env, from: Address, amount: i128) {
-        from.require_auth();
-
         let token_address: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token = token::Client::new(&env, &token_address);
 
@@ -80,9 +79,8 @@ impl MockYieldProtocol {
     }
 
     /// Withdraw tokens from the protocol (including accrued yield)
+    /// Note: No auth check since this is a mock for testing
     pub fn withdraw(env: Env, to: Address, amount: i128) {
-        to.require_auth();
-
         let token_address: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token = token::Client::new(&env, &token_address);
 

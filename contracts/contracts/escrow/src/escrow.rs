@@ -2,6 +2,9 @@ use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, 
 use crate::utils::deployments;
 use adapter_trait::YieldAdapterClient;
 
+// Scaling factor for exchange index calculations (matches token decimals)
+const INDEX_SCALE: i128 = 10_000_000; // 1e7
+
 mod standardized_yield {
     soroban_sdk::contractimport!(
         file = "../../wasms/standardized_yield.wasm"
@@ -175,8 +178,10 @@ impl Escrow for EscrowContract {
         let adapter_client = YieldAdapterClient::new(&env, &adapter_address);
         adapter_client.deposit(&env.current_contract_address(), &amount);
 
-        // syAmount = assetAmount / exchangeRate
-        let sy_amount = amount / Self::get_current_exchange_index(env.clone());
+        // syAmount = (assetAmount * INDEX_SCALE) / exchangeRate
+        // Since exchangeRate is already scaled, we get the correct result
+        let exchange_index = Self::get_current_exchange_index(env.clone());
+        let sy_amount = (amount * INDEX_SCALE) / exchange_index;
 
         // Mint SY tokens to the escrow contract
         Self::mint_sy(env.clone(), sy_amount);
@@ -188,9 +193,9 @@ impl Escrow for EscrowContract {
 
 #[contractimpl]
 impl EscrowContract {
-    /// Get the current exchange index
-    /// Formula: PY Index = total_assets / total_shares
-    /// Initially returns 1 when no shares exist
+    /// Get the current exchange index (scaled by INDEX_SCALE)
+    /// Formula: PY Index = (total_assets * INDEX_SCALE) / total_shares
+    /// Initially returns INDEX_SCALE when no shares exist (representing 1.0)
     pub fn get_current_exchange_index(env: Env) -> i128 {
         let adapter_address: Address = env.storage().instance()
             .get(&DataKey::Adapter)
@@ -208,13 +213,14 @@ impl EscrowContract {
         let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
         let total_shares = sy_client.total_supply();
 
-        // If no shares exist yet, return initial index of 1
+        // If no shares exist yet, return initial index of INDEX_SCALE (representing 1.0)
         if total_shares == 0 {
-            return 1;
+            return INDEX_SCALE;
         }
 
-        // Calculate exchange index: total_assets / total_shares
-        total_assets / total_shares
+        // Calculate exchange index: (total_assets * INDEX_SCALE) / total_shares
+        // This preserves precision by scaling the result
+        (total_assets * INDEX_SCALE) / total_shares
     }
 
     /// Mints SY tokens to the escrow contract
@@ -237,8 +243,10 @@ impl EscrowContract {
             .get(&DataKey::YTToken)
             .expect("Not initialized");
 
-        // Mint PT tokens based on SY quantity * index
-        let pt_amount = sy_amount * Self::get_current_exchange_index(env.clone()); // Interchangeable for PT and YT quantities
+        // Mint PT tokens based on SY quantity * index / INDEX_SCALE
+        // Since exchange index is scaled, we need to divide by INDEX_SCALE to get actual amount
+        let exchange_index = Self::get_current_exchange_index(env.clone());
+        let pt_amount = (sy_amount * exchange_index) / INDEX_SCALE;
 
         let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
         pt_client.mint(&user, &pt_amount);
@@ -266,11 +274,13 @@ impl EscrowContract {
         let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
         pt_client.burn(&user, &amount);
 
-        // Calculate SY amount to redeem: PT amount / yield index
-        let sy_amount = amount / Self::get_current_exchange_index(env.clone());
+        let exchange_index = Self::get_current_exchange_index(env.clone());
 
-        // Calculate underlying asset amount to withdraw: SY amount * exchange rate
-        let withdraw_amount = sy_amount * Self::get_current_exchange_index(env.clone());
+        // Calculate SY amount to redeem: (PT amount * INDEX_SCALE) / yield index
+        let sy_amount = (amount * INDEX_SCALE) / exchange_index;
+
+        // Calculate underlying asset amount to withdraw: (SY amount * exchange rate) / INDEX_SCALE
+        let withdraw_amount = (sy_amount * exchange_index) / INDEX_SCALE;
 
         // Withdraw from the adapter (transfers tokens to escrow contract)
         let adapter_address: Address = env.storage().instance()

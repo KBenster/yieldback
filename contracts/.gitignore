@@ -4,5 +4,5 @@ target
 # Local settings
 .soroban
 .stellar
-.claude
 nul
+/tests/test_snapshots/

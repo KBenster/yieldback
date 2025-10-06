@@ -42,7 +42,7 @@ impl TestFixture<'_> {
 
         env.ledger().set(LedgerInfo {
             timestamp: 1_000_000,
-            protocol_version: 22,
+            protocol_version: 23,
             sequence_number: 100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -63,22 +63,22 @@ impl TestFixture<'_> {
         );
         let token = MockTokenClient::new(&env, &token_address);
 
-        // Deploy mock yield protocol with 5% APY and 100M token reserve
-        let initial_reserve = 100_000_000 * SCALAR_7; // 100M tokens for paying yield
-
-        // Mint tokens to admin for funding the protocol
-        token.mint(&admin, &initial_reserve);
-
+        // Deploy mock yield protocol with 5% APY
         let yield_protocol_address = env.register(
             MOCK_YIELD_PROTOCOL_WASM,
             (
                 &token_address,
                 &500u32,              // 5% APY
                 &admin,
-                &initial_reserve,
+                &0i128,               // No initial reserve during construction
             ),
         );
         let yield_protocol = MockYieldProtocolClient::new(&env, &yield_protocol_address);
+
+        // Fund the protocol with 100M tokens after deployment
+        let initial_reserve = 100_000_000 * SCALAR_7;
+        token.mint(&admin, &initial_reserve);
+        yield_protocol.fund_protocol(&admin, &initial_reserve);
 
         // Upload contract WASMs once - following Blend's pattern
         let adapter_wasm_hash = env.deployer().upload_contract_wasm(MOCK_ADAPTER_WASM);
@@ -151,7 +151,7 @@ impl TestFixture<'_> {
     pub fn jump(&self, time: u64) {
         self.env.ledger().set(LedgerInfo {
             timestamp: self.env.ledger().timestamp().saturating_add(time),
-            protocol_version: 22,
+            protocol_version: 23,
             sequence_number: self.env.ledger().sequence(),
             network_id: Default::default(),
             base_reserve: 10,
