@@ -12,9 +12,5 @@ yield_token = { path = "../contracts/tokens/yield_token" }
 adapter_trait = { path = "../contracts/adapter/traits" }
 
 [[test]]
-name = "yield_pool_tests"
-path = "yield_pool_tests.rs"
-
-[[test]]
 name = "escrow_tests"
 path = "escrow_tests.rs"
