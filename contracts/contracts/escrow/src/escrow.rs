@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, String};
+use soroban_sdk::{contract, contractclient, contractimpl, contracttype, token, Address, BytesN, Env, String};
 use crate::utils::deployments;
 use adapter_trait::YieldAdapterClient;
 
@@ -50,42 +50,81 @@ pub enum DataKey {
     IsDeployed,
 }
 
+/// Core escrow interface for Pendle-style yield tokenization
+/// This trait defines the public API that other contracts can use to interact with the escrow
+#[contractclient(name = "EscrowClient")]
 pub trait Escrow {
+    /// Initialize the escrow contract with admin and market metadata
+    /// Only stores WASM hashes - deployment happens separately
+    fn __constructor(env: Env, admin: Address, market_meta: MarketInitMeta);
+
+    /// Deploy the market with the specified maturity date and token metadata
+    /// Can only be called once per escrow instance
+    fn deploy_market(
+        env: Env,
+        admin: Address,
+        maturity_date: u64,
+        sy_name: String,
+        sy_symbol: String,
+        pt_name: String,
+        pt_symbol: String,
+        yt_name: String,
+        yt_symbol: String,
+    );
+
+    /// Deposit tokens and receive PT + YT tokens
+    /// User receives PT and YT tokens representing principal and yield
     fn deposit(env: Env, user: Address, amount: i128);
+
+    /// Redeem YT token interest for a user
+    /// Returns the amount of interest redeemed in SY tokens
+    fn redeem_yt_interest(env: Env, user: Address) -> i128;
+
+    /// Redeem PT tokens for underlying assets after maturity
+    /// Can only be called after the maturity date
+    fn redeem_principal(env: Env, user: Address, amount: i128);
+
+    /// Get the current exchange index (scaled by INDEX_SCALE)
+    /// Formula: PY Index = (total_assets * INDEX_SCALE) / total_shares
+    fn get_current_exchange_index(env: Env) -> i128;
+
+    /// Get accrued interest for a user (view function)
+    fn get_user_accrued_interest(env: Env, user: Address) -> i128;
+
+    /// Get the Standardized Yield token address
+    fn get_sy_token(env: Env) -> Address;
+
+    /// Get the Principal Token address
+    fn get_pt_token(env: Env) -> Address;
+
+    /// Get the Yield Token address
+    fn get_yt_token(env: Env) -> Address;
+
+    /// Get the adapter contract address
+    fn get_adapter(env: Env) -> Address;
+
+    /// Check if the market has been deployed
+    fn is_deployed(env: Env) -> bool;
+    #[doc = " Mints PT and YT tokens to the user based on the SY amount"]
+
+    fn mint_pt_and_yt(env: Env, user: Address, sy_amount: i128);
+    #[doc = " Mints SY tokens to the escrow contract"]
+
+    fn mint_sy(env: Env, sy_amount: i128);
 }
 
 #[contract]
 pub struct EscrowContract;
 
 #[contractimpl]
-impl EscrowContract {
-    pub fn get_sy_token(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::SYToken).expect("SY token not deployed")
-    }
-
-    pub fn get_pt_token(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::PTToken).expect("PT token not deployed")
-    }
-
-    pub fn get_yt_token(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::YTToken).expect("YT token not deployed")
-    }
-
-    pub fn get_adapter(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::Adapter).expect("Adapter not deployed")
-    }
-
-    /// Constructor - Only stores WASM hashes and configuration
-    /// Deployment happens in separate deploy_market() function
-    pub fn __constructor(env: Env, admin: Address, market_meta: MarketInitMeta) {
+impl Escrow for EscrowContract {
+    fn __constructor(env: Env, admin: Address, market_meta: MarketInitMeta) {
         admin.require_auth();
         env.storage().instance().set(&DataKey::MarketMeta, &market_meta);
         env.storage().instance().set(&DataKey::IsDeployed, &false);
     }
 
-    /// Deploy the market with the specified maturity date and token metadata
-    /// Can only be called once per escrow instance
-    pub fn deploy_market(
+    fn deploy_market(
         env: Env,
         admin: Address,
         maturity_date: u64,
@@ -144,16 +183,6 @@ impl EscrowContract {
         env.storage().instance().set(&DataKey::IsDeployed, &true);
     }
 
-    /// Check if market has been deployed
-    pub fn is_deployed(env: Env) -> bool {
-        env.storage().instance()
-            .get(&DataKey::IsDeployed)
-            .unwrap_or(false)
-    }
-}
-
-#[contractimpl]
-impl Escrow for EscrowContract {
     fn deposit(env: Env, user: Address, amount: i128) {
         user.require_auth();
 
@@ -189,14 +218,51 @@ impl Escrow for EscrowContract {
         // Mint PT and YT tokens to the user
         Self::mint_pt_and_yt(env, user, sy_amount);
     }
-}
 
-#[contractimpl]
-impl EscrowContract {
-    /// Get the current exchange index (scaled by INDEX_SCALE)
-    /// Formula: PY Index = (total_assets * INDEX_SCALE) / total_shares
-    /// Initially returns INDEX_SCALE when no shares exist (representing 1.0)
-    pub fn get_current_exchange_index(env: Env) -> i128 {
+    fn redeem_yt_interest(env: Env, user: Address) -> i128 {
+        user.require_auth();
+
+        let yt_token_address: Address = env.storage().instance()
+            .get(&DataKey::YTToken)
+            .expect("YT token not deployed");
+
+        // Get and clear the accrued interest from YT contract
+        let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+        let interest_amount = yt_client.redeem_interest(&user);
+
+        if interest_amount <= 0 {
+            return 0;
+        }
+
+        // Withdraw from adapter to cover the interest
+        let adapter_address: Address = env.storage().instance()
+            .get(&DataKey::Adapter)
+            .expect("Not initialized");
+
+        let adapter_client = YieldAdapterClient::new(&env, &adapter_address);
+        adapter_client.withdraw(&interest_amount);
+
+        // Transfer SY tokens to user
+        let sy_token_address: Address = env.storage().instance()
+            .get(&DataKey::SYToken)
+            .expect("Not initialized");
+
+        let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
+        sy_client.transfer(&env.current_contract_address(), &user, &interest_amount);
+
+        interest_amount
+    }
+
+    fn get_user_accrued_interest(env: Env, user: Address) -> i128 {
+        let yt_token_address: Address = env.storage().instance()
+            .get(&DataKey::YTToken)
+            .expect("YT token not deployed");
+
+        let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+        yt_client.get_user_interest(&user).accrued
+    }
+
+    fn get_current_exchange_index(env: Env) -> i128 {
         let adapter_address: Address = env.storage().instance()
             .get(&DataKey::Adapter)
             .expect("Not initialized");
@@ -255,8 +321,7 @@ impl EscrowContract {
         yt_client.mint(&user, &pt_amount); // These should be interchangeable
     }
 
-    /// PT Redemption
-    pub fn redeem_principal(env: Env, user: Address, amount: i128) {
+    fn redeem_principal(env: Env, user: Address, amount: i128) {
         user.require_auth();
 
         let maturity_date: u64 = env.storage().instance()
@@ -297,5 +362,63 @@ impl EscrowContract {
 
         let token = token::Client::new(&env, &token_address);
         token.transfer(&env.current_contract_address(), &user, &withdraw_amount);
+    }
+
+    fn get_sy_token(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::SYToken).expect("SY token not deployed")
+    }
+
+    fn get_pt_token(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::PTToken).expect("PT token not deployed")
+    }
+
+    fn get_yt_token(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::YTToken).expect("YT token not deployed")
+    }
+
+    fn get_adapter(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Adapter).expect("Adapter not deployed")
+    }
+
+    fn is_deployed(env: Env) -> bool {
+        env.storage().instance()
+            .get(&DataKey::IsDeployed)
+            .unwrap_or(false)
+    }
+}
+
+// Internal helper functions
+#[contractimpl]
+impl EscrowContract {
+    /// Mints SY tokens to the escrow contract
+    fn mint_sy(env: Env, sy_amount: i128) {
+        let sy_token_address: Address = env.storage().instance()
+            .get(&DataKey::SYToken)
+            .expect("Not initialized");
+
+        let sy_client = StandardizedYieldClient::new(&env, &sy_token_address);
+        sy_client.mint(&env.current_contract_address(), &sy_amount);
+    }
+
+    /// Mints PT and YT tokens to the user based on the SY amount
+    fn mint_pt_and_yt(env: Env, user: Address, sy_amount: i128) {
+        let pt_token_address: Address = env.storage().instance()
+            .get(&DataKey::PTToken)
+            .expect("Not initialized");
+
+        let yt_token_address: Address = env.storage().instance()
+            .get(&DataKey::YTToken)
+            .expect("Not initialized");
+
+        // Mint PT tokens based on SY quantity * index / INDEX_SCALE
+        // Since exchange index is scaled, we need to divide by INDEX_SCALE to get actual amount
+        let exchange_index = EscrowContract::get_current_exchange_index(env.clone());
+        let pt_amount = (sy_amount * exchange_index) / INDEX_SCALE;
+
+        let pt_client = PrincipalTokenClient::new(&env, &pt_token_address);
+        pt_client.mint(&user, &pt_amount);
+
+        let yt_client = YieldTokenClient::new(&env, &yt_token_address);
+        yt_client.mint(&user, &pt_amount); // These should be interchangeable
     }
 }
