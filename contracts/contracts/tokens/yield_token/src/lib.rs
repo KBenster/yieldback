@@ -7,7 +7,7 @@ use soroban_sdk::{contract, contractimpl};
 #[cfg(feature = "contract")]
 mod escrow {
     soroban_sdk::contractimport!(
-        file = "../../wasms/escrow.wasm"
+        file = "../../../wasms/escrow.wasm"
     );
 }
 
