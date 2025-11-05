@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, Bytes, BytesN, Env, IntoVal, String};
+use soroban_sdk::{Address, Bytes, BytesN, Env, String};
 
 pub struct DeploymentAddresses {
     pub adapter: Address,

@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 escrow = { path = "../contracts/escrow" }
-standardized_yield = { path = "../contracts/tokens/standardized_yield" }
 principal_token = { path = "../contracts/tokens/principal_token" }
 yield_token = { path = "../contracts/tokens/yield_token" }
 adapter_trait = { path = "../contracts/adapter/traits" }

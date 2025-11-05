@@ -4,7 +4,7 @@ members = [
   "contracts/adapter/traits",
   "contracts/escrow",
   "contracts/tokens/principal_token",
-  "contracts/tokens/standardized_yield",
+  "contracts/vault",
   "contracts/tokens/yield_token",
   "tests"
 ]
