@@ -30,6 +30,11 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_adapter/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_yield_protocol/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/base-strategy/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/traits/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

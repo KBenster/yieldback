@@ -1,5 +1,6 @@
 #![no_std]
 mod utils;
-pub mod escrow;
+pub mod escrow_old;
+mod escrow;
 
-pub use escrow::{EscrowContract, EscrowContractClient};
+pub use escrow_old::{EscrowContract, EscrowContractClient};

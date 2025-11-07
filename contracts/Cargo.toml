@@ -1,10 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-  "contracts/adapter/traits",
   "contracts/escrow",
   "contracts/tokens/principal_token",
-  "contracts/vault",
+  "contracts/vault/core",
+  "contracts/vault/strategies/traits",
+  "contracts/vault/strategies/base-strategy",
   "contracts/tokens/yield_token",
   "tests"
 ]

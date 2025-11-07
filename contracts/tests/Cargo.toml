@@ -8,9 +8,7 @@ soroban-sdk = { workspace = true, features = ["testutils"] }
 escrow = { path = "../contracts/escrow" }
 principal_token = { path = "../contracts/tokens/principal_token" }
 yield_token = { path = "../contracts/tokens/yield_token" }
-adapter_trait = { path = "../contracts/adapter/traits" }
 mock_token = { path = "../contracts/mocks/mock_token" }
-mock_adapter = { path = "../contracts/mocks/mock_adapter" }
 mock_yield_protocol = { path = "../contracts/mocks/mock_yield_protocol" }
 
 [[test]]
