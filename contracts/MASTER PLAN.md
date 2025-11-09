@@ -1,1 +1,0 @@
-1. Make a vault contract that implements the open zeppelin library (for now just doing the whole implementation by myself because open zeppelin hasnt released their vault system)
