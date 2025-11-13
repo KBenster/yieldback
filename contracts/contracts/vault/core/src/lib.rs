@@ -39,8 +39,13 @@ impl VaultContract {
             .get(&"strategy")
             .expect("Strategy not set")
     }
-}
 
+    /// Get the exchange rate (assets per share)
+    pub fn exchange_rate(e: &Env) -> i128 {
+        Vault::convert_to_assets(e, 1i128)
+    }
+}
+//TODO: this could be better probably i think, figure it out, maybe not
 #[default_impl]
 #[contractimpl]
 impl FungibleToken for VaultContract {
