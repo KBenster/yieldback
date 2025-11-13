@@ -1,13 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-  "contracts/escrow",
-  "contracts/tokens/principal_token",
+  "contracts/core/tokens/principal_token",
+  "contracts/core/tokens/yield_token",
+  "contracts/core/yield/yield_manager",
   "contracts/vault/core",
   "contracts/vault/strategies/traits",
   "contracts/vault/strategies/base-strategy",
-  "contracts/tokens/yield_token",
-  "tests"
+  "contracts/mocks/mock_token",
+  "contracts/mocks/mock_yield_protocol",
 ]
 
 [workspace.dependencies]
