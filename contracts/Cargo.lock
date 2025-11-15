@@ -1794,7 +1794,10 @@ dependencies = [
 name = "yield_manager"
 version = "0.1.0"
 dependencies = [
+ "principal_token",
  "soroban-sdk",
+ "vault-core",
+ "yield_token",
 ]
 
 [[package]]

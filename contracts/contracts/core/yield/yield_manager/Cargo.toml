@@ -12,6 +12,9 @@ contract = []
 
 [dependencies]
 soroban-sdk = { workspace = true }
+vault-core = { path = "../../../vault/core" }
+principal_token = { path = "../../tokens/principal_token" }
+yield_token = { path = "../../tokens/yield_token" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
