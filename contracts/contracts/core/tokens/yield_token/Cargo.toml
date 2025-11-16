@@ -12,6 +12,7 @@ contract = []
 
 [dependencies]
 soroban-sdk = { workspace = true }
+vault-core = { path = "../../../vault/core" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

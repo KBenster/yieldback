@@ -1,0 +1,130 @@
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use vault_core::VaultContractClient;
+use crate::storage;
+
+pub trait YieldTokenTrait {
+    fn __constructor(env: Env, admin: Address, vault: Address, name: String, symbol: String);
+    fn mint(env: Env, to: Address, amount: i128);
+    fn transfer(env: Env, from: Address, to: Address, amount: i128);
+    fn burn(env: Env, from: Address, amount: i128);
+    fn balance(env: Env, address: Address) -> i128;
+    fn user_index(env: Env, address: Address) -> i128;
+    fn accrued_yield(env: Env, address: Address) -> i128;
+    fn total_supply(env: Env) -> i128;
+    fn name(env: Env) -> String;
+    fn symbol(env: Env) -> String;
+}
+
+#[contract]
+pub struct YieldToken;
+
+impl YieldToken {
+    fn accrue_yield(env: &Env, user: &Address) -> i128 {
+        let balance = storage::get_balance(env, user);
+        let old_index = storage::get_user_index(env, user);
+
+        if balance > 0 && old_index > 0 {
+            let vault_addr = storage::get_vault(env);
+            let vault_client = VaultContractClient::new(env, &vault_addr);
+            let current_rate = vault_client.exchange_rate();
+
+            let pending_yield = (balance * (current_rate - old_index)) / (old_index * current_rate);
+            let current_accrued = storage::get_accrued_yield(env, user);
+            storage::set_accrued_yield(env, user, current_accrued + pending_yield);
+            storage::set_user_index(env, user, current_rate);
+
+            current_rate
+        } else {
+            let vault_addr = storage::get_vault(env);
+            let vault_client = VaultContractClient::new(env, &vault_addr);
+            vault_client.exchange_rate()
+        }
+    }
+}
+
+#[contractimpl]
+impl YieldTokenTrait for YieldToken {
+    fn __constructor(
+        env: Env,
+        admin: Address,
+        vault: Address,
+        name: String,
+        symbol: String,
+    ) {
+        storage::set_admin(&env, &admin);
+        storage::set_vault(&env, &vault);
+        storage::set_metadata(&env, name, symbol);
+    }
+
+    fn mint(env: Env, to: Address, amount: i128) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+
+        let current_rate = Self::accrue_yield(&env, &to);
+
+        let old_balance = storage::get_balance(&env, &to);
+        let new_balance = old_balance + amount;
+        storage::set_balance(&env, &to, new_balance);
+        storage::set_user_index(&env, &to, current_rate);
+
+        let total_supply = storage::get_total_supply(&env);
+        storage::set_total_supply(&env, total_supply + amount);
+    }
+
+    fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        from.require_auth();
+
+        let from_balance = storage::get_balance(&env, &from);
+        if from_balance < amount {
+            panic!("Insufficient balance");
+        }
+
+        Self::accrue_yield(&env, &from);
+        Self::accrue_yield(&env, &to);
+
+        let to_balance = storage::get_balance(&env, &to);
+
+        storage::set_balance(&env, &from, from_balance - amount);
+        storage::set_balance(&env, &to, to_balance + amount);
+    }
+
+    fn burn(env: Env, from: Address, amount: i128) {
+        from.require_auth();
+
+        let balance = storage::get_balance(&env, &from);
+        if balance < amount {
+            panic!("Insufficient balance");
+        }
+
+        Self::accrue_yield(&env, &from);
+
+        storage::set_balance(&env, &from, balance - amount);
+
+        let total_supply = storage::get_total_supply(&env);
+        storage::set_total_supply(&env, total_supply - amount);
+    }
+
+    fn balance(env: Env, address: Address) -> i128 {
+        storage::get_balance(&env, &address)
+    }
+
+    fn user_index(env: Env, address: Address) -> i128 {
+        storage::get_user_index(&env, &address)
+    }
+
+    fn accrued_yield(env: Env, address: Address) -> i128 {
+        storage::get_accrued_yield(&env, &address)
+    }
+
+    fn total_supply(env: Env) -> i128 {
+        storage::get_total_supply(&env)
+    }
+
+    fn name(env: Env) -> String {
+        storage::get_metadata(&env).name
+    }
+
+    fn symbol(env: Env) -> String {
+        storage::get_metadata(&env).symbol
+    }
+}
