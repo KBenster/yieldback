@@ -11,7 +11,7 @@ pub struct TokenMetadata {
 #[derive(Clone)]
 pub enum DataKey {
     Balance(Address),
-    UserIndex(Address),
+    UserIndex(Address), // vault exchange rate the user last interacted at
     AccruedYield(Address),
 }
 

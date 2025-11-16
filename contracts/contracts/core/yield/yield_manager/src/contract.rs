@@ -23,6 +23,8 @@ pub trait YieldManagerTrait {
     fn get_maturity(env: Env) -> u64;
     fn get_exchange_rate(env: Env) -> i128;
     fn deposit(env: Env, from: Address, shares_amount: i128);
+    fn distribute_yield(env: Env, to: Address, shares_amount: i128);
+    fn redeem_principal(env: Env, from: Address, pt_amount: i128);
 }
 
 #[cfg(feature = "contract")]
@@ -128,5 +130,59 @@ impl YieldManagerTrait for YieldManager {
         // Mint YT tokens to user (shares * exchange_rate)
         let yt_client = YieldTokenClient::new(&env, &yt_addr);
         yt_client.mint(&from, &mint_amount);
+    }
+
+    fn distribute_yield(env: Env, to: Address, shares_amount: i128) {
+        // Only the YT contract can call this
+        let yt_addr = storage::get_yield_token(&env);
+        yt_addr.require_auth();
+
+        if shares_amount <= 0 {
+            return;
+        }
+
+        // Transfer vault shares from yield manager to user
+        let vault_addr = storage::get_vault(&env);
+        let vault_token_client = token::Client::new(&env, &vault_addr);
+        vault_token_client.transfer(
+            &env.current_contract_address(),
+            &to,
+            &shares_amount,
+        );
+    }
+
+    fn redeem_principal(env: Env, from: Address, pt_amount: i128) {
+        from.require_auth();
+
+        if pt_amount <= 0 {
+            panic!("Amount must be positive");
+        }
+
+        // Check maturity has passed
+        let maturity = storage::get_maturity(&env);
+        let current_time = env.ledger().timestamp();
+        if current_time < maturity {
+            panic!("Maturity not reached");
+        }
+
+        let vault_addr = storage::get_vault(&env);
+        let pt_addr = storage::get_principal_token(&env);
+
+        // Calculate vault shares to return: PT / exchange_rate
+        let vault_client = VaultContractClient::new(&env, &vault_addr);
+        let exchange_rate = vault_client.exchange_rate();
+        let shares_to_return = pt_amount / exchange_rate;
+
+        // Burn PT tokens from user
+        let pt_client = PrincipalTokenClient::new(&env, &pt_addr);
+        pt_client.burn(&from, &pt_amount);
+
+        // Transfer vault shares back to user
+        let vault_token_client = token::Client::new(&env, &vault_addr);
+        vault_token_client.transfer(
+            &env.current_contract_address(),
+            &from,
+            &shares_to_return,
+        );
     }
 }

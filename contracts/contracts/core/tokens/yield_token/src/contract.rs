@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, IntoVal, Symbol};
 use vault_core::VaultContractClient;
 use crate::storage;
 
@@ -13,6 +13,7 @@ pub trait YieldTokenTrait {
     fn total_supply(env: Env) -> i128;
     fn name(env: Env) -> String;
     fn symbol(env: Env) -> String;
+    fn claim_yield(env: Env, user: Address) -> i128;
 }
 
 #[contract]
@@ -126,5 +127,28 @@ impl YieldTokenTrait for YieldToken {
 
     fn symbol(env: Env) -> String {
         storage::get_metadata(&env).symbol
+    }
+
+    fn claim_yield(env: Env, user: Address) -> i128 {
+        user.require_auth();
+
+        Self::accrue_yield(&env, &user);
+
+        let claimable = storage::get_accrued_yield(&env, &user);
+        if claimable == 0 {
+            return 0;
+        }
+
+        storage::set_accrued_yield(&env, &user, 0);
+
+        // Call yield manager (admin) to distribute vault shares
+        let yield_manager = storage::get_admin(&env);
+        env.invoke_contract::<()>(
+            &yield_manager,
+            &Symbol::new(&env, "distribute_yield"),
+            (user.clone(), claimable).into_val(&env),
+        );
+
+        claimable
     }
 }

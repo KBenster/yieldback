@@ -16,3 +16,9 @@ User claiming process
     calculate amount / gets users accrued balance
     (this is where you would apply a fee)
     transfer vault shares back to user
+
+
+Yield redemption for principal tokens
+    After maturity, PT is redeemable
+    the redemption ratio is locked at the exchange rate at expiry.
+    
