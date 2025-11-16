@@ -1,7 +1,18 @@
-Yield Manager
-user deposits, 100 PT 100 YT get minted to user (yield manager will be the token contract admin)
+Yield Redemption for yield tokens
 
-YT contract
-Each user, in the YT contract, has their last exchange rate stored.
-source of truth for this exchange rate is in the vault contract
-a stored value is in the YT contract for each user
+each user has
+    index: the exchange rate when they last claimed/interacted
+    accrued: the amount of yield they've earned but not yet claimed
+
+whenever a user interacts (transfers, claims, etc)
+    gets current exchange rate
+    calculates yield earned since their last interaction (userYTBalance × (currentIndex - userIndex)) / (userIndex × currentIndex)
+    adds this to their accrued balance
+    updates their index to current exchange rate
+their interest needs to be updated during mints, burns, token transfers, redeeming PT and YT
+
+User claiming process
+    First update distribution, like calculate all unclaimed interest
+    calculate amount / gets users accrued balance
+    (this is where you would apply a fee)
+    transfer vault shares back to user

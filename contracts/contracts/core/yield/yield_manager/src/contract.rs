@@ -110,16 +110,23 @@ impl YieldManagerTrait for YieldManager {
         let pt_addr = storage::get_principal_token(&env);
         let yt_addr = storage::get_yield_token(&env);
 
+        // Get the current exchange rate from the vault
+        let vault_client = VaultContractClient::new(&env, &vault_addr);
+        let exchange_rate = vault_client.exchange_rate();
+
+        // Calculate the amount of tokens to mint based on shares and exchange rate
+        let mint_amount = shares_amount * exchange_rate;
+
         // Transfer vault shares from user to yield manager
         let vault_token_client = token::Client::new(&env, &vault_addr);
         vault_token_client.transfer(&from, &env.current_contract_address(), &shares_amount);
 
-        // Mint PT tokens to user (1:1 with shares)
+        // Mint PT tokens to user (shares * exchange_rate)
         let pt_client = PrincipalTokenClient::new(&env, &pt_addr);
-        pt_client.mint(&from, &shares_amount);
+        pt_client.mint(&from, &mint_amount);
 
-        // Mint YT tokens to user (1:1 with shares)
+        // Mint YT tokens to user (shares * exchange_rate)
         let yt_client = YieldTokenClient::new(&env, &yt_addr);
-        yt_client.mint(&from, &shares_amount);
+        yt_client.mint(&from, &mint_amount);
     }
 }
