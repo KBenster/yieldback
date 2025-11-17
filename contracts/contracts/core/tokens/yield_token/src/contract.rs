@@ -22,24 +22,32 @@ pub struct YieldToken;
 impl YieldToken {
     fn accrue_yield(env: &Env, user: &Address) -> i128 {
         let balance = storage::get_balance(env, user);
+
+        // Early return if no balance
+        if balance == 0 {
+            return 0;
+        }
+
         let old_index = storage::get_user_index(env, user);
+        let vault_addr = storage::get_vault(env);
+        let vault_client = VaultContractClient::new(env, &vault_addr);
+        let current_rate = vault_client.exchange_rate();
 
-        if balance > 0 && old_index > 0 {
-            let vault_addr = storage::get_vault(env);
-            let vault_client = VaultContractClient::new(env, &vault_addr);
-            let current_rate = vault_client.exchange_rate();
+        // Initialize index for new users
+        if old_index == 0 {
+            storage::set_user_index(env, user, current_rate);
+            return current_rate;
+        }
 
-            let pending_yield = (balance * (current_rate - old_index)) / (old_index * current_rate);
+        // Accrue if rate increased
+        if current_rate > old_index {
+            let pending_yield = (balance * (current_rate - old_index)) / old_index;
             let current_accrued = storage::get_accrued_yield(env, user);
             storage::set_accrued_yield(env, user, current_accrued + pending_yield);
             storage::set_user_index(env, user, current_rate);
-
-            current_rate
-        } else {
-            let vault_addr = storage::get_vault(env);
-            let vault_client = VaultContractClient::new(env, &vault_addr);
-            vault_client.exchange_rate()
         }
+
+        current_rate
     }
 }
 
@@ -61,12 +69,19 @@ impl YieldTokenTrait for YieldToken {
         let admin = storage::get_admin(&env);
         admin.require_auth();
 
-        let current_rate = Self::accrue_yield(&env, &to);
+        Self::accrue_yield(&env, &to);
 
         let old_balance = storage::get_balance(&env, &to);
         let new_balance = old_balance + amount;
         storage::set_balance(&env, &to, new_balance);
-        storage::set_user_index(&env, &to, current_rate);
+
+        // Initialize index for new users only (preserve high water mark for existing users)
+        let old_index = storage::get_user_index(&env, &to);
+        if old_index == 0 {
+            let vault_addr = storage::get_vault(&env);
+            let vault_client = VaultContractClient::new(&env, &vault_addr);
+            storage::set_user_index(&env, &to, vault_client.exchange_rate());
+        }
 
         let total_supply = storage::get_total_supply(&env);
         storage::set_total_supply(&env, total_supply + amount);
@@ -87,6 +102,14 @@ impl YieldTokenTrait for YieldToken {
 
         storage::set_balance(&env, &from, from_balance - amount);
         storage::set_balance(&env, &to, to_balance + amount);
+
+        // Initialize index for new recipients only (preserve high water mark for returning users)
+        let to_index = storage::get_user_index(&env, &to);
+        if to_index == 0 {
+            let vault_addr = storage::get_vault(&env);
+            let vault_client = VaultContractClient::new(&env, &vault_addr);
+            storage::set_user_index(&env, &to, vault_client.exchange_rate());
+        }
     }
 
     fn burn(env: Env, from: Address, amount: i128) {
