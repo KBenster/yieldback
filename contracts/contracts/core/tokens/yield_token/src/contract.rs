@@ -1,5 +1,5 @@
 use soroban_sdk::{contract, contractimpl, Address, Env, String, IntoVal, Symbol};
-use vault_core::VaultContractClient;
+use yield_manager::YieldManagerClient;
 use crate::storage;
 
 pub trait YieldTokenTrait {
@@ -29,9 +29,9 @@ impl YieldToken {
         }
 
         let old_index = storage::get_user_index(env, user);
-        let vault_addr = storage::get_vault(env);
-        let vault_client = VaultContractClient::new(env, &vault_addr);
-        let current_rate = vault_client.exchange_rate();
+        let yield_manager = storage::get_admin(env);
+        let yield_manager_client = YieldManagerClient::new(env, &yield_manager);
+        let current_rate = yield_manager_client.get_exchange_rate();
 
         // Initialize index for new users
         if old_index == 0 {
@@ -78,9 +78,9 @@ impl YieldTokenTrait for YieldToken {
         // Initialize index for new users only (preserve high water mark for existing users)
         let old_index = storage::get_user_index(&env, &to);
         if old_index == 0 {
-            let vault_addr = storage::get_vault(&env);
-            let vault_client = VaultContractClient::new(&env, &vault_addr);
-            storage::set_user_index(&env, &to, vault_client.exchange_rate());
+            let yield_manager = storage::get_admin(&env);
+            let yield_manager_client = YieldManagerClient::new(&env, &yield_manager);
+            storage::set_user_index(&env, &to, yield_manager_client.get_exchange_rate());
         }
 
         let total_supply = storage::get_total_supply(&env);
@@ -106,9 +106,9 @@ impl YieldTokenTrait for YieldToken {
         // Initialize index for new recipients only (preserve high water mark for returning users)
         let to_index = storage::get_user_index(&env, &to);
         if to_index == 0 {
-            let vault_addr = storage::get_vault(&env);
-            let vault_client = VaultContractClient::new(&env, &vault_addr);
-            storage::set_user_index(&env, &to, vault_client.exchange_rate());
+            let yield_manager = storage::get_admin(&env);
+            let yield_manager_client = YieldManagerClient::new(&env, &yield_manager);
+            storage::set_user_index(&env, &to, yield_manager_client.get_exchange_rate());
         }
     }
 

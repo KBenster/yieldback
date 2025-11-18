@@ -6,6 +6,7 @@ const VAULT_KEY: &str = "vault";
 const PRINCIPAL_TOKEN_KEY: &str = "principal_token";
 const YIELD_TOKEN_KEY: &str = "yield_token";
 const MATURITY_KEY: &str = "maturity";
+const EXCHANGE_RATE_AT_EXPIRY_KEY: &str = "exchange_rate_at_expiry";
 
 // Admin functions
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -65,4 +66,15 @@ pub fn get_yield_token(env: &Env) -> Address {
         .instance()
         .get(&YIELD_TOKEN_KEY)
         .expect("Yield token not set")
+}
+
+// Exchange rate at expiry (set once after maturity is reached)
+pub fn set_exchange_rate_at_expiry(env: &Env, rate: i128) {
+    env.storage().instance().set(&EXCHANGE_RATE_AT_EXPIRY_KEY, &rate);
+}
+
+pub fn get_exchange_rate_at_expiry(env: &Env) -> Option<i128> {
+    env.storage()
+        .instance()
+        .get(&EXCHANGE_RATE_AT_EXPIRY_KEY)
 }

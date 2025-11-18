@@ -22,6 +22,8 @@ pub trait YieldManagerTrait {
     fn get_yield_token(env: Env) -> Address;
     fn get_maturity(env: Env) -> u64;
     fn get_exchange_rate(env: Env) -> i128;
+    fn get_exchange_rate_at_expiry(env: Env) -> Option<i128>;
+    fn set_exchange_rate_at_expiry(env: Env);
     fn deposit(env: Env, from: Address, shares_amount: i128);
     fn distribute_yield(env: Env, to: Address, shares_amount: i128);
     fn redeem_principal(env: Env, from: Address, pt_amount: i128);
@@ -96,9 +98,49 @@ impl YieldManagerTrait for YieldManager {
     }
 
     fn get_exchange_rate(env: Env) -> i128 {
+        // If exchange rate at expiry is already set, return it
+        if let Some(rate_at_expiry) = storage::get_exchange_rate_at_expiry(&env) {
+            return rate_at_expiry;
+        }
+
+        // Get current vault exchange rate
         let vault_addr = storage::get_vault(&env);
         let vault_client = VaultContractClient::new(&env, &vault_addr);
-        vault_client.exchange_rate()
+        let current_rate = vault_client.exchange_rate();
+
+        // If maturity has passed, automatically set and lock the rate at expiry
+        let maturity = storage::get_maturity(&env);
+        let current_time = env.ledger().timestamp();
+        if current_time >= maturity {
+            storage::set_exchange_rate_at_expiry(&env, current_rate);
+        }
+
+        current_rate
+    }
+
+    fn get_exchange_rate_at_expiry(env: Env) -> Option<i128> {
+        storage::get_exchange_rate_at_expiry(&env)
+    }
+
+    fn set_exchange_rate_at_expiry(env: Env) {
+        // Check that maturity has been reached
+        let maturity = storage::get_maturity(&env);
+        let current_time = env.ledger().timestamp();
+        if current_time < maturity {
+            panic!("Maturity not reached yet");
+        }
+
+        // Check if exchange rate at expiry is already set
+        if storage::get_exchange_rate_at_expiry(&env).is_some() {
+            panic!("Exchange rate at expiry already set");
+        }
+
+        // Get and store the current exchange rate
+        let vault_addr = storage::get_vault(&env);
+        let vault_client = VaultContractClient::new(&env, &vault_addr);
+        let exchange_rate = vault_client.exchange_rate();
+
+        storage::set_exchange_rate_at_expiry(&env, exchange_rate);
     }
 
     fn deposit(env: Env, from: Address, shares_amount: i128) {
@@ -168,9 +210,8 @@ impl YieldManagerTrait for YieldManager {
         let vault_addr = storage::get_vault(&env);
         let pt_addr = storage::get_principal_token(&env);
 
-        // Calculate vault shares to return: PT / exchange_rate
-        let vault_client = VaultContractClient::new(&env, &vault_addr);
-        let exchange_rate = vault_client.exchange_rate();
+        // Get exchange rate (will be capped at expiry if set)
+        let exchange_rate = Self::get_exchange_rate(env.clone());
         let shares_to_return = pt_amount / exchange_rate;
 
         // Burn PT tokens from user

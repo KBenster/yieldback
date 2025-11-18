@@ -22,3 +22,5 @@ Yield redemption for principal tokens
     After maturity, PT is redeemable
     the redemption ratio is locked at the exchange rate at expiry.
     
+PRO RATA DISTRIBUTION!!
+    
