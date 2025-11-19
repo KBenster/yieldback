@@ -5,6 +5,7 @@ members = [
   "contracts/core/tokens/yield_token",
   "contracts/core/yield/yield_manager",
   "contracts/vault/core",
+  "contracts/vault/vault_interface",
   "contracts/vault/strategies/traits",
   "contracts/vault/strategies/base-strategy",
   "contracts/mocks/mock_token",

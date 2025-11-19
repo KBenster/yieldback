@@ -1,33 +1,10 @@
-use soroban_sdk::{token, Address, BytesN, Env, String};
+use soroban_sdk::{token, Address, BytesN, Env, IntoVal, String, Symbol};
 use crate::storage;
-use vault_core::VaultContractClient;
-use principal_token::PrincipalTokenClient;
-use yield_token::YieldTokenClient;
+use vault_interface::VaultContractClient;
+use yield_manager_interface::YieldManagerTrait;
 
 #[cfg(feature = "contract")]
 use soroban_sdk::{contract, contractimpl};
-
-pub trait YieldManagerTrait {
-    fn __constructor(
-        env: Env,
-        admin: Address,
-        vault: Address,
-        maturity: u64,
-        pt_wasm_hash: BytesN<32>,
-        yt_wasm_hash: BytesN<32>,
-    );
-
-    fn get_vault(env: Env) -> Address;
-    fn get_principal_token(env: Env) -> Address;
-    fn get_yield_token(env: Env) -> Address;
-    fn get_maturity(env: Env) -> u64;
-    fn get_exchange_rate(env: Env) -> i128;
-    fn get_exchange_rate_at_expiry(env: Env) -> Option<i128>;
-    fn set_exchange_rate_at_expiry(env: Env);
-    fn deposit(env: Env, from: Address, shares_amount: i128);
-    fn distribute_yield(env: Env, to: Address, shares_amount: i128);
-    fn redeem_principal(env: Env, from: Address, pt_amount: i128);
-}
 
 #[cfg(feature = "contract")]
 #[contract]
@@ -165,13 +142,19 @@ impl YieldManagerTrait for YieldManager {
         let vault_token_client = token::Client::new(&env, &vault_addr);
         vault_token_client.transfer(&from, &env.current_contract_address(), &shares_amount);
 
-        // Mint PT tokens to user (shares * exchange_rate)
-        let pt_client = PrincipalTokenClient::new(&env, &pt_addr);
-        pt_client.mint(&from, &mint_amount);
+        // Mint PT tokens to user (shares * exchange_rate) using dynamic invocation
+        env.invoke_contract::<()>(
+            &pt_addr,
+            &Symbol::new(&env, "mint"),
+            (from.clone(), mint_amount).into_val(&env),
+        );
 
-        // Mint YT tokens to user (shares * exchange_rate)
-        let yt_client = YieldTokenClient::new(&env, &yt_addr);
-        yt_client.mint(&from, &mint_amount);
+        // Mint YT tokens to user (shares * exchange_rate) using dynamic invocation
+        env.invoke_contract::<()>(
+            &yt_addr,
+            &Symbol::new(&env, "mint"),
+            (from.clone(), mint_amount).into_val(&env),
+        );
     }
 
     fn distribute_yield(env: Env, to: Address, shares_amount: i128) {
@@ -214,9 +197,12 @@ impl YieldManagerTrait for YieldManager {
         let exchange_rate = Self::get_exchange_rate(env.clone());
         let shares_to_return = pt_amount / exchange_rate;
 
-        // Burn PT tokens from user
-        let pt_client = PrincipalTokenClient::new(&env, &pt_addr);
-        pt_client.burn(&from, &pt_amount);
+        // Burn PT tokens from user using dynamic invocation
+        env.invoke_contract::<()>(
+            &pt_addr,
+            &Symbol::new(&env, "burn"),
+            (from.clone(), pt_amount).into_val(&env),
+        );
 
         // Transfer vault shares back to user
         let vault_token_client = token::Client::new(&env, &vault_addr);

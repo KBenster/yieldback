@@ -12,7 +12,8 @@ contract = []
 
 [dependencies]
 soroban-sdk = { workspace = true }
-vault-core = { path = "../../../vault/core" }
+vault_interface = { path = "../../../vault/vault_interface" }
+yield_manager_interface = { path = "../../yield/yield_manager_interface" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

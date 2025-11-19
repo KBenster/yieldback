@@ -1,5 +1,5 @@
 use soroban_sdk::{contract, contractimpl, Address, Env, String, IntoVal, Symbol};
-use yield_manager::YieldManagerClient;
+use yield_manager_interface::YieldManagerClient;
 use crate::storage;
 
 pub trait YieldTokenTrait {

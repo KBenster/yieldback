@@ -1616,6 +1616,7 @@ dependencies = [
  "stellar-macros",
  "stellar-tokens",
  "vault-strategy-traits",
+ "vault_interface",
 ]
 
 [[package]]
@@ -1632,6 +1633,13 @@ dependencies = [
 
 [[package]]
 name = "vault-strategy-traits"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "vault_interface"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
@@ -1794,10 +1802,16 @@ dependencies = [
 name = "yield_manager"
 version = "0.1.0"
 dependencies = [
- "principal_token",
  "soroban-sdk",
- "vault-core",
- "yield_token",
+ "vault_interface",
+ "yield_manager_interface",
+]
+
+[[package]]
+name = "yield_manager_interface"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]
@@ -1805,7 +1819,8 @@ name = "yield_token"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
- "vault-core",
+ "vault_interface",
+ "yield_manager_interface",
 ]
 
 [[package]]

@@ -6,9 +6,14 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["contract"]
+contract = []
+
 [dependencies]
 soroban-sdk = { workspace = true }
 vault-strategy-traits = { path = "../strategies/traits" }
+vault_interface = { path = "../vault_interface" }
 
 # OpenZeppelin Stellar contracts
 [dependencies.stellar-tokens]

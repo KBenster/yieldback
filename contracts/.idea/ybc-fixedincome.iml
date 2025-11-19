@@ -38,6 +38,7 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/core/tokens/principal_token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/core/tokens/yield_token/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/core/yield/yield_manager/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/core/yield/yield_manager_interface/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

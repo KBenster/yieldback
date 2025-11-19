@@ -5,10 +5,9 @@ use yield_manager::YieldManagerClient;
 #[cfg(feature = "contract")]
 use soroban_sdk::{contract, contractimpl};
 
-// TODO: Replace these with actual WASM hashes after deployment
-const PT_WASM_HASH: [u8; 32] = [0u8; 32]; // PLACEHOLDER - Replace with actual PT WASM hash
-const YT_WASM_HASH: [u8; 32] = [0u8; 32]; // PLACEHOLDER - Replace with actual YT WASM hash
-const YM_WASM_HASH: [u8; 32] = [0u8; 32]; // PLACEHOLDER - Replace with actual YM WASM hash
+const PT_WASM_HASH: [u8; 32] = [0u8; 32];
+const YT_WASM_HASH: [u8; 32] = [0u8; 32];
+const YM_WASM_HASH: [u8; 32] = [0u8; 32];
 
 pub trait FactoryTrait {
     fn __constructor(env: Env, admin: Address);

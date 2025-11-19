@@ -1,20 +1,42 @@
 #![no_std]
+
+#[cfg(feature = "contract")]
 use soroban_sdk::{contract, contractimpl, token, Address, Env, String};
+#[cfg(feature = "contract")]
 use stellar_macros::default_impl;
+#[cfg(feature = "contract")]
 use stellar_tokens::{
     fungible::{Base, FungibleToken},
     vault::{FungibleVault, Vault},
 };
+#[cfg(feature = "contract")]
 use vault_strategy_traits::StrategyClient;
 
+pub use vault_interface::VaultTrait;
+
+#[cfg(feature = "contract")]
 #[contract]
 pub struct VaultContract;
 
+// Implement the interface trait for client generation
+#[cfg(feature = "contract")]
+#[contractimpl]
+impl VaultTrait for VaultContract {
+    fn __constructor(e: Env, asset: Address, decimals_offset: u32, strategy: Address) {
+        Self::__constructor_impl(&e, asset, decimals_offset, strategy);
+    }
+
+    fn exchange_rate(e: Env) -> i128 {
+        Self::exchange_rate_impl(&e)
+    }
+}
+
+#[cfg(feature = "contract")]
 #[contractimpl]
 impl VaultContract {
-    pub fn __constructor(e: &Env, asset: Address, decimals_offset: u32, strategy: Address) {
+    fn __constructor_impl(e: &Env, asset: Address, decimals_offset: u32, strategy: Address) {
         // Set the underlying asset address (immutable after initialization)
-        Vault::set_asset(e, asset);
+        Vault::set_asset(e, asset.clone());
 
         // Set the decimals offset for precision (immutable after initialization)
         Vault::set_decimals_offset(e, decimals_offset);
@@ -22,13 +44,26 @@ impl VaultContract {
         // Set the strategy address (immutable after initialization)
         e.storage().instance().set(&"strategy", &strategy);
 
+        // Get the underlying asset's symbol for vault naming
+        let asset_client = token::Client::new(e, &asset);
+        let asset_symbol = asset_client.symbol();
+
+        // Create vault token name and symbol using the asset symbol
+        // We'll use a simplified approach since Soroban strings don't support push_str
+        // For now, use the asset symbol directly with a prefix in the name
+        let vault_name = String::from_str(e, "Vault Share Token");
+
+        // For symbol, we'll just use the asset symbol as-is for simplicity
+        // TODO: Implement proper string concatenation when needed
+        let vault_symbol = asset_symbol;
+
         // Initialize token metadata
         // Note: Vault overrides the decimals function, so set offset first
         Base::set_metadata(
             e,
             Vault::decimals(e),
-            String::from_str(e, "Vault Token"),
-            String::from_str(e, "VLT"),
+            vault_name,
+            vault_symbol,
         );
     }
 
@@ -41,12 +76,14 @@ impl VaultContract {
     }
 
     /// Get the exchange rate (assets per share)
-    pub fn exchange_rate(e: &Env) -> i128 {
+    fn exchange_rate_impl(e: &Env) -> i128 {
         Vault::convert_to_assets(e, 1i128)
     }
 }
 //TODO: this could be better probably i think, figure it out, maybe not
+#[cfg(feature = "contract")]
 #[default_impl]
+#[cfg(feature = "contract")]
 #[contractimpl]
 impl FungibleToken for VaultContract {
     type ContractType = Vault;
@@ -54,6 +91,7 @@ impl FungibleToken for VaultContract {
     fn total_supply (e : & Env )-> i128 {Self :: ContractType :: total_supply (e )}
 }
 
+#[cfg(feature = "contract")]
 #[contractimpl]
 impl FungibleVault for VaultContract {
     fn query_asset(e: &Env) -> Address {
