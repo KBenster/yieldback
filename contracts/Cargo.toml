@@ -10,6 +10,7 @@ members = [
   "contracts/vault/strategies/base-strategy",
   "contracts/mocks/mock_token",
   "contracts/mocks/mock_yield_protocol",
+  "contracts/amm",
 ]
 
 [workspace.dependencies]
