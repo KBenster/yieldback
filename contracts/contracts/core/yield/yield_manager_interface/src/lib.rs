@@ -11,9 +11,9 @@ pub trait YieldManagerTrait {
         admin: Address,
         vault: Address,
         maturity: u64,
-        pt_wasm_hash: BytesN<32>,
-        yt_wasm_hash: BytesN<32>,
     );
+
+    fn set_token_contracts(env: Env, pt_addr: Address, yt_addr: Address);
 
     fn get_vault(env: Env) -> Address;
     fn get_principal_token(env: Env) -> Address;

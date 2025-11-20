@@ -1,4 +1,4 @@
-use soroban_sdk::{token, Address, BytesN, Env, IntoVal, String, Symbol};
+use soroban_sdk::{token, Address, Env, IntoVal, Symbol};
 use crate::storage;
 use vault_interface::VaultContractClient;
 use yield_manager_interface::YieldManagerTrait;
@@ -18,44 +18,24 @@ impl YieldManagerTrait for YieldManager {
         admin: Address,
         vault: Address,
         maturity: u64,
-        pt_wasm_hash: BytesN<32>, // THESE NEED TO BE PART OF THE HIGHER DEPLOYER CONTRACT
-        yt_wasm_hash: BytesN<32>,
     ) {
         storage::set_admin(&env, &admin);
         storage::set_vault(&env, &vault);
         storage::set_maturity(&env, maturity);
+    }
 
-        // Deploy Principal Token with hardcoded metadata
-        let pt_salt = BytesN::from_array(&env, &[0u8; 32]);
-        let pt_addr = env
-            .deployer()
-            .with_current_contract(pt_salt)
-            .deploy_v2(
-                pt_wasm_hash,
-                (
-                    env.current_contract_address(),
-                    String::from_str(&env, "Principal Token"),
-                    String::from_str(&env, "PT"),
-                ),
-            );
+    fn set_token_contracts(env: Env, pt_addr: Address, yt_addr: Address) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+
+        // Ensure this can only be called once
+        if storage::is_initialized(&env) {
+            panic!("Token contracts already initialized");
+        }
 
         storage::set_principal_token(&env, &pt_addr);
-
-        // Deploy Yield Token with hardcoded metadata
-        let yt_salt = BytesN::from_array(&env, &[1u8; 32]);
-        let yt_addr = env
-            .deployer()
-            .with_current_contract(yt_salt)
-            .deploy_v2(
-                yt_wasm_hash,
-                (
-                    env.current_contract_address(),
-                    String::from_str(&env, "Yield Token"),
-                    String::from_str(&env, "YT"),
-                ),
-            );
-
         storage::set_yield_token(&env, &yt_addr);
+        storage::set_initialized(&env);
     }
 
     fn get_vault(env: Env) -> Address {

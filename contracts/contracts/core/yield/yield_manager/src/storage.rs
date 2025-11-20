@@ -7,6 +7,7 @@ const PRINCIPAL_TOKEN_KEY: &str = "principal_token";
 const YIELD_TOKEN_KEY: &str = "yield_token";
 const MATURITY_KEY: &str = "maturity";
 const EXCHANGE_RATE_AT_EXPIRY_KEY: &str = "exchange_rate_at_expiry";
+const INITIALIZED_KEY: &str = "initialized";
 
 // Admin functions
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -77,4 +78,16 @@ pub fn get_exchange_rate_at_expiry(env: &Env) -> Option<i128> {
     env.storage()
         .instance()
         .get(&EXCHANGE_RATE_AT_EXPIRY_KEY)
+}
+
+// Initialization flag (set once when token contracts are set)
+pub fn is_initialized(env: &Env) -> bool {
+    env.storage()
+        .instance()
+        .get(&INITIALIZED_KEY)
+        .unwrap_or(false)
+}
+
+pub fn set_initialized(env: &Env) {
+    env.storage().instance().set(&INITIALIZED_KEY, &true);
 }

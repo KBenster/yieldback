@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
+num-integer = "0.1.46"
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
