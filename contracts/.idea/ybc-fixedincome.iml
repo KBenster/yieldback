@@ -32,7 +32,6 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/mocks/mock_yield_protocol/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/vault/core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/vault/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/base-strategy/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/traits/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/core/tokens/principal_token/src" isTestSource="false" />
@@ -41,6 +40,8 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/amm/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/core/yield/yield_manager_interface/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/vault/vault_interface/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/base_strategy/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/vault/strategies/blend_strategy/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
