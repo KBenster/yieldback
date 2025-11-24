@@ -6,6 +6,9 @@ use soroban_sdk::{
 };
 use vault_strategy_traits::IStrategy;
 
+#[cfg(test)]
+mod test;
+
 // Import Blend pool contract
 soroban_sdk::contractimport!(file = "../../../../wasms/pool_v2.0.0.wasm");
 pub type BlendPoolClient<'a> = Client<'a>;

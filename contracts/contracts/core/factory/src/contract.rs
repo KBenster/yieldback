@@ -19,7 +19,22 @@ pub trait FactoryTrait {
         maturity: u64,
     ) -> Address;
 
-    fn deploy_liquidity_pools(env: Env, yield_manager: Address, vault: Address) -> (Address, Address);
+    fn deploy_liquidity_pools(
+        env: Env,
+        pt_token: Address,
+        yt_token: Address,
+        vault_share_token: Address,
+    ) -> (Address, Address);
+
+    // Getter functions for current contracts
+    fn get_current_yield_manager(env: Env) -> Option<Address>;
+    fn get_current_pt_token(env: Env) -> Option<Address>;
+    fn get_current_yt_token(env: Env) -> Option<Address>;
+    fn get_current_pt_pool(env: Env) -> Option<Address>;
+    fn get_current_yt_pool(env: Env) -> Option<Address>;
+
+    // Rollover function to deploy new contracts after maturity
+    fn rollover_if_expired(env: Env, new_maturity: u64) -> bool;
 }
 
 #[cfg(feature = "contract")]
@@ -96,54 +111,112 @@ impl FactoryTrait for Factory {
         let ym_client = YieldManagerClient::new(&env, &ym_addr);
         ym_client.set_token_contracts(&pt_addr, &yt_addr);
 
+        // Store current contracts in factory storage
+        storage::set_current_yield_manager(&env, &ym_addr);
+        storage::set_current_pt_token(&env, &pt_addr);
+        storage::set_current_yt_token(&env, &yt_addr);
+
         ym_addr
     }
 
-    fn deploy_liquidity_pools(env: Env, yield_manager: Address, vault: Address) -> (Address, Address) {
+    fn deploy_liquidity_pools(
+        env: Env,
+        pt_token: Address,
+        yt_token: Address,
+        vault_share_token: Address,
+    ) -> (Address, Address) {
         let admin = storage::get_admin(&env);
         admin.require_auth();
 
-        // Get PT and YT addresses from yield manager
-        let ym_client = YieldManagerClient::new(&env, &yield_manager);
-        let pt_addr = ym_client.get_principal_token();
-        let yt_addr = ym_client.get_yield_token();
-
         let amm_wasm_hash = BytesN::from_array(&env, &AMM_WASM_HASH);
 
-        // Deploy PT/Vault AMM pool
-        // Ensure proper ordering: token_a < token_b
-        let (pt_pool_token_a, pt_pool_token_b) = if pt_addr < vault {
-            (pt_addr.clone(), vault.clone())
-        } else {
-            (vault.clone(), pt_addr.clone())
-        };
-
+        // Deploy PT/Vault Share AMM pool
         let pt_pool_salt = BytesN::from_array(&env, &[2u8; 32]);
         let pt_pool_addr = env
             .deployer()
             .with_current_contract(pt_pool_salt)
             .deploy_v2(
                 amm_wasm_hash.clone(),
-                (pt_pool_token_a, pt_pool_token_b),
+                (pt_token, vault_share_token.clone()),
             );
 
-        // Deploy YT/Vault AMM pool
-        // Ensure proper ordering: token_a < token_b
-        let (yt_pool_token_a, yt_pool_token_b) = if yt_addr < vault {
-            (yt_addr.clone(), vault.clone())
-        } else {
-            (vault.clone(), yt_addr.clone())
-        };
-
+        // Deploy YT/Vault Share AMM pool
         let yt_pool_salt = BytesN::from_array(&env, &[3u8; 32]);
         let yt_pool_addr = env
             .deployer()
             .with_current_contract(yt_pool_salt)
             .deploy_v2(
                 amm_wasm_hash,
-                (yt_pool_token_a, yt_pool_token_b),
+                (yt_token, vault_share_token),
             );
 
+        // Store current pool addresses in factory storage
+        storage::set_current_pt_pool(&env, &pt_pool_addr);
+        storage::set_current_yt_pool(&env, &yt_pool_addr);
+
         (pt_pool_addr, yt_pool_addr)
+    }
+
+    // Getter functions for current contracts
+    fn get_current_yield_manager(env: Env) -> Option<Address> {
+        storage::get_current_yield_manager(&env)
+    }
+
+    fn get_current_pt_token(env: Env) -> Option<Address> {
+        storage::get_current_pt_token(&env)
+    }
+
+    fn get_current_yt_token(env: Env) -> Option<Address> {
+        storage::get_current_yt_token(&env)
+    }
+
+    fn get_current_pt_pool(env: Env) -> Option<Address> {
+        storage::get_current_pt_pool(&env)
+    }
+
+    fn get_current_yt_pool(env: Env) -> Option<Address> {
+        storage::get_current_yt_pool(&env)
+    }
+
+    /// Checks if current yield manager has expired and deploys new contracts if so
+    /// Returns true if rollover occurred, false otherwise
+    fn rollover_if_expired(env: Env, new_maturity: u64) -> bool {
+        // Get current yield manager
+        let current_ym = match storage::get_current_yield_manager(&env) {
+            Some(ym) => ym,
+            None => return false, // No yield manager deployed yet
+        };
+
+        // Check if maturity has expired
+        let ym_client = YieldManagerClient::new(&env, &current_ym);
+        let maturity = ym_client.get_maturity();
+        let current_timestamp = env.ledger().timestamp();
+
+        if current_timestamp < maturity {
+            // Not expired yet
+            return false;
+        }
+
+        // Maturity has expired, deploy new contracts
+        let vault = ym_client.get_vault();
+
+        // Deploy new yield manager with new maturity
+        // This sets new yt/pt tokens in storage
+        let new_ym_addr = Self::deploy_yield_manager(env.clone(), vault.clone(), new_maturity);
+
+        // Get the newly deployed token addresses from storage
+        let new_pt_addr = storage::get_current_pt_token(&env).unwrap();
+        let new_yt_addr = storage::get_current_yt_token(&env).unwrap();
+
+        // Deploy new liquidity pools
+        // Vault address is the vault share token
+        Self::deploy_liquidity_pools(
+            env,
+            new_pt_addr,
+            new_yt_addr,
+            vault,
+        );
+
+        true
     }
 }
