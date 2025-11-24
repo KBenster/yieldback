@@ -8,6 +8,7 @@ use soroban_sdk::{contract, contractimpl};
 const PT_WASM_HASH: [u8; 32] = [0u8; 32];
 const YT_WASM_HASH: [u8; 32] = [0u8; 32];
 const YM_WASM_HASH: [u8; 32] = [0u8; 32];
+const AMM_WASM_HASH: [u8; 32] = [0u8; 32];
 
 pub trait FactoryTrait {
     fn __constructor(env: Env, admin: Address);
@@ -18,7 +19,7 @@ pub trait FactoryTrait {
         maturity: u64,
     ) -> Address;
 
-    fn deploy_liquidity_pools(env: Env, asset1: Address, asset2: Address) -> (Address, Address);
+    fn deploy_liquidity_pools(env: Env, yield_manager: Address, vault: Address) -> (Address, Address);
 }
 
 #[cfg(feature = "contract")]
@@ -57,7 +58,7 @@ impl FactoryTrait for Factory {
             .deploy_v2(
                 ym_wasm_hash,
                 (
-                    admin.clone(),
+                    env.current_contract_address(),
                     vault,
                     maturity,
                 ),
@@ -98,8 +99,51 @@ impl FactoryTrait for Factory {
         ym_addr
     }
 
-    fn deploy_liquidity_pools(env: Env, asset1: Address, asset2: Address) -> (Address, Address) {
-        // TODO: Replace the placeholder
-        (asset1.clone(), asset2.clone())
+    fn deploy_liquidity_pools(env: Env, yield_manager: Address, vault: Address) -> (Address, Address) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+
+        // Get PT and YT addresses from yield manager
+        let ym_client = YieldManagerClient::new(&env, &yield_manager);
+        let pt_addr = ym_client.get_principal_token();
+        let yt_addr = ym_client.get_yield_token();
+
+        let amm_wasm_hash = BytesN::from_array(&env, &AMM_WASM_HASH);
+
+        // Deploy PT/Vault AMM pool
+        // Ensure proper ordering: token_a < token_b
+        let (pt_pool_token_a, pt_pool_token_b) = if pt_addr < vault {
+            (pt_addr.clone(), vault.clone())
+        } else {
+            (vault.clone(), pt_addr.clone())
+        };
+
+        let pt_pool_salt = BytesN::from_array(&env, &[2u8; 32]);
+        let pt_pool_addr = env
+            .deployer()
+            .with_current_contract(pt_pool_salt)
+            .deploy_v2(
+                amm_wasm_hash.clone(),
+                (pt_pool_token_a, pt_pool_token_b),
+            );
+
+        // Deploy YT/Vault AMM pool
+        // Ensure proper ordering: token_a < token_b
+        let (yt_pool_token_a, yt_pool_token_b) = if yt_addr < vault {
+            (yt_addr.clone(), vault.clone())
+        } else {
+            (vault.clone(), yt_addr.clone())
+        };
+
+        let yt_pool_salt = BytesN::from_array(&env, &[3u8; 32]);
+        let yt_pool_addr = env
+            .deployer()
+            .with_current_contract(yt_pool_salt)
+            .deploy_v2(
+                amm_wasm_hash,
+                (yt_pool_token_a, yt_pool_token_b),
+            );
+
+        (pt_pool_addr, yt_pool_addr)
     }
 }
