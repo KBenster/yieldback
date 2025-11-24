@@ -4,7 +4,7 @@ use crate::storage;
 
 pub trait YieldTokenTrait {
     fn __constructor(env: Env, admin: Address, vault: Address, name: String, symbol: String);
-    fn mint(env: Env, to: Address, amount: i128);
+    fn mint(env: Env, to: Address, amount: i128, exchange_rate: i128);
     fn transfer(env: Env, from: Address, to: Address, amount: i128);
     fn burn(env: Env, from: Address, amount: i128);
     fn balance(env: Env, address: Address) -> i128;
@@ -20,7 +20,7 @@ pub trait YieldTokenTrait {
 pub struct YieldToken;
 
 impl YieldToken {
-    fn accrue_yield(env: &Env, user: &Address) -> i128 {
+    fn accrue_yield(env: &Env, user: &Address, rate_hint: Option<i128>) -> i128 {
         let balance = storage::get_balance(env, user);
 
         // Early return if no balance
@@ -29,9 +29,14 @@ impl YieldToken {
         }
 
         let old_index = storage::get_user_index(env, user);
-        let yield_manager = storage::get_admin(env);
-        let yield_manager_client = YieldManagerClient::new(env, &yield_manager);
-        let current_rate = yield_manager_client.get_exchange_rate();
+
+        let current_rate: i128 = if let Some(rate) = rate_hint {
+            rate
+        } else {
+            let yield_manager = storage::get_admin(env);
+            let yield_manager_client = YieldManagerClient::new(env, &yield_manager);
+            yield_manager_client.get_exchange_rate()
+        };
 
         // Initialize index for new users
         if old_index == 0 {
@@ -65,11 +70,11 @@ impl YieldTokenTrait for YieldToken {
         storage::set_metadata(&env, name, symbol);
     }
 
-    fn mint(env: Env, to: Address, amount: i128) {
+    fn mint(env: Env, to: Address, amount: i128, exchange_rate: i128) {
         let admin = storage::get_admin(&env);
         admin.require_auth();
 
-        Self::accrue_yield(&env, &to);
+        Self::accrue_yield(&env, &to, None);
 
         let old_balance = storage::get_balance(&env, &to);
         let new_balance = old_balance + amount;
@@ -95,8 +100,8 @@ impl YieldTokenTrait for YieldToken {
             panic!("Insufficient balance");
         }
 
-        Self::accrue_yield(&env, &from);
-        Self::accrue_yield(&env, &to);
+        Self::accrue_yield(&env, &from, None);
+        Self::accrue_yield(&env, &to, None);
 
         let to_balance = storage::get_balance(&env, &to);
 
@@ -120,7 +125,7 @@ impl YieldTokenTrait for YieldToken {
             panic!("Insufficient balance");
         }
 
-        Self::accrue_yield(&env, &from);
+        Self::accrue_yield(&env, &from, None);
 
         storage::set_balance(&env, &from, balance - amount);
 
@@ -155,7 +160,7 @@ impl YieldTokenTrait for YieldToken {
     fn claim_yield(env: Env, user: Address) -> i128 {
         user.require_auth();
 
-        Self::accrue_yield(&env, &user);
+        Self::accrue_yield(&env, &user, None);
 
         let claimable = storage::get_accrued_yield(&env, &user);
         if claimable == 0 {

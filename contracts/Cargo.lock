@@ -845,7 +845,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
+name = "mock_blend_pool"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "mock_token"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "mock_vault"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
@@ -1799,9 +1813,12 @@ dependencies = [
 name = "yield_manager"
 version = "0.1.0"
 dependencies = [
+ "mock_vault",
+ "principal_token",
  "soroban-sdk",
  "vault_interface",
  "yield_manager_interface",
+ "yield_token",
 ]
 
 [[package]]

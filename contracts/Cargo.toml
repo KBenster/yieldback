@@ -9,6 +9,8 @@ members = [
   "contracts/vault/strategies/traits",
   "contracts/vault/strategies/blend_strategy",
   "contracts/mocks/mock_token",
+  "contracts/mocks/mock_blend_pool",
+  "contracts/mocks/mock_vault",
   "contracts/amm",
 ]
 

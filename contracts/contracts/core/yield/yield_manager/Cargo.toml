@@ -17,6 +17,9 @@ yield_manager_interface = { path = "../yield_manager_interface" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+mock_vault = { path = "../../../mocks/mock_vault" }
+principal_token = { path = "../../tokens/principal_token" }
+yield_token = { path = "../../tokens/yield_token" }
 
 [profile.release]
 opt-level = "z"
