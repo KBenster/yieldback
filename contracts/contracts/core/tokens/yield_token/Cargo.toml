@@ -14,9 +14,12 @@ contract = []
 soroban-sdk = { workspace = true }
 vault_interface = { path = "../../../vault/vault_interface" }
 yield_manager_interface = { path = "../../yield/yield_manager_interface" }
+mock_vault = {path = "../../../mocks/mock_vault"}
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+principal_token = { path = "../principal_token" }
+yield_manager = { path = "../../yield/yield_manager" }
 
 [profile.release]
 opt-level = "z"
