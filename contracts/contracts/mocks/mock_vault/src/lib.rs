@@ -14,6 +14,7 @@ const ASSET: &str = "asset";
 const TOTAL_SHARES: &str = "total_shares";
 const LAST_UPDATE_TIME: &str = "last_update_time";
 const YIELD_RATE: &str = "yield_rate"; // Basis points per second (10000 = 1% per second)
+const INITIAL_VIRTUAL_BALANCE: &str = "initial_virtual_balance"; // Virtual assets to bootstrap exchange rate
 
 const BASIS_POINTS_SCALE: i128 = 10_000; // 1 basis point = 0.01%
 
@@ -23,8 +24,15 @@ impl MockVault {
     /// yield_rate_bps: yield rate in basis points per second (e.g., 1 = 0.01% per second)
     pub fn __constructor(e: Env, asset: Address, yield_rate_bps: i128) {
         e.storage().instance().set(&ASSET, &asset);
-        e.storage().instance().set(&TOTAL_SHARES, &0i128);
         e.storage().instance().set(&YIELD_RATE, &yield_rate_bps);
+
+        // Initialize with virtual balance to enable exchange rate calculations
+        // Set 1 billion units (with 7 decimals = 100 tokens) as virtual initial balance
+        let initial_balance = 1_000_000_000i128;
+        e.storage().instance().set(&INITIAL_VIRTUAL_BALANCE, &initial_balance);
+
+        // Initialize with matching shares (1:1 ratio initially)
+        e.storage().instance().set(&TOTAL_SHARES, &initial_balance);
 
         // Set initial timestamp
         let current_time = e.ledger().timestamp();
@@ -126,12 +134,18 @@ impl MockVault {
         let asset_client = token::Client::new(&e, &asset_addr);
         let actual_balance = asset_client.balance(&e.current_contract_address());
 
-        // Calculate yield based on time elapsed
-        let yield_accrued = Self::calculate_yield(&e, actual_balance);
+        // Add virtual initial balance
+        let virtual_balance = Self::get_initial_virtual_balance(&e);
+        let total_principal = actual_balance
+            .checked_add(virtual_balance)
+            .unwrap_or(actual_balance);
 
-        actual_balance
+        // Calculate yield based on time elapsed
+        let yield_accrued = Self::calculate_yield(&e, total_principal);
+
+        total_principal
             .checked_add(yield_accrued)
-            .unwrap_or(actual_balance)
+            .unwrap_or(total_principal)
     }
 
     /// Set the yield rate (in basis points per second)
@@ -283,6 +297,14 @@ impl MockVault {
         e.storage()
             .instance()
             .get(&LAST_UPDATE_TIME)
+            .unwrap_or(0)
+    }
+
+    /// Get initial virtual balance
+    fn get_initial_virtual_balance(e: &Env) -> i128 {
+        e.storage()
+            .instance()
+            .get(&INITIAL_VIRTUAL_BALANCE)
             .unwrap_or(0)
     }
 

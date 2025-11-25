@@ -190,6 +190,14 @@
                       },
                       {
                         "key": {
+                          "string": "initial_virtual_balance"
+                        },
+                        "val": {
+                          "i128": "1000000000"
+                        }
+                      },
+                      {
+                        "key": {
                           "string": "last_update_time"
                         },
                         "val": {
@@ -201,7 +209,7 @@
                           "string": "total_shares"
                         },
                         "val": {
-                          "i128": "0"
+                          "i128": "1000000000"
                         }
                       },
                       {

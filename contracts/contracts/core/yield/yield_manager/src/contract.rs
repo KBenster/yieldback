@@ -1,7 +1,9 @@
-use soroban_sdk::{token, Address, Env, IntoVal, Symbol};
+use soroban_sdk::{token, Address, Env};
 use crate::storage;
 use vault_interface::VaultContractClient;
 use yield_manager_interface::YieldManagerTrait;
+use principal_token::PrincipalTokenClient;
+use yield_token::YieldTokenClient;
 
 #[cfg(feature = "contract")]
 use soroban_sdk::{contract, contractimpl};
@@ -122,19 +124,13 @@ impl YieldManagerTrait for YieldManager {
         let vault_token_client = token::Client::new(&env, &vault_addr);
         vault_token_client.transfer(&from, &env.current_contract_address(), &shares_amount);
 
-        // Mint PT tokens to user (shares * exchange_rate) using dynamic invocation
-        env.invoke_contract::<()>(
-            &pt_addr,
-            &Symbol::new(&env, "mint"),
-            (from.clone(), mint_amount).into_val(&env),
-        );
+        // Mint PT tokens to user (shares * exchange_rate) using type-safe client
+        let pt_client = PrincipalTokenClient::new(&env, &pt_addr);
+        pt_client.mint(&from, &mint_amount);
 
-        // Mint YT tokens to user (shares * exchange_rate) using dynamic invocation
-        env.invoke_contract::<()>(
-            &yt_addr,
-            &Symbol::new(&env, "mint"),
-            (from.clone(), mint_amount).into_val(&env),
-        );
+        // Mint YT tokens to user (shares * exchange_rate) using type-safe client
+        let yt_client = YieldTokenClient::new(&env, &yt_addr);
+        yt_client.mint(&from, &mint_amount, &exchange_rate);
     }
 
     fn distribute_yield(env: Env, to: Address, shares_amount: i128) {
@@ -177,12 +173,9 @@ impl YieldManagerTrait for YieldManager {
         let exchange_rate = Self::get_exchange_rate(env.clone());
         let shares_to_return = pt_amount / exchange_rate;
 
-        // Burn PT tokens from user using dynamic invocation
-        env.invoke_contract::<()>(
-            &pt_addr,
-            &Symbol::new(&env, "burn"),
-            (from.clone(), pt_amount).into_val(&env),
-        );
+        // Burn PT tokens from user using type-safe client
+        let pt_client = PrincipalTokenClient::new(&env, &pt_addr);
+        pt_client.burn(&from, &pt_amount);
 
         // Transfer vault shares back to user
         let vault_token_client = token::Client::new(&env, &vault_addr);

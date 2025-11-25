@@ -11,9 +11,11 @@ default = ["contract"]
 contract = []
 
 [dependencies]
+principal_token = { path = "../../tokens/principal_token" }
 soroban-sdk = { workspace = true }
 vault_interface = { path = "../../../vault/vault_interface" }
 yield_manager_interface = { path = "../yield_manager_interface" }
+yield_token = { path = "../../tokens/yield_token" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -46,7 +46,9 @@ impl YieldToken {
 
         // Accrue if rate increased
         if current_rate > old_index {
-            let pending_yield = (balance * (current_rate - old_index)) / old_index;
+            // Calculate pending yield in vault shares
+            // balance and rates are scaled by 1e6, so divide by 1e6 to get actual shares
+            let pending_yield = (balance * (current_rate - old_index)) / old_index / 1_000_000;
             let current_accrued = storage::get_accrued_yield(env, user);
             storage::set_accrued_yield(env, user, current_accrued + pending_yield);
             storage::set_user_index(env, user, current_rate);
@@ -74,7 +76,7 @@ impl YieldTokenTrait for YieldToken {
         let admin = storage::get_admin(&env);
         admin.require_auth();
 
-        Self::accrue_yield(&env, &to, None);
+        Self::accrue_yield(&env, &to, Some(exchange_rate));
 
         let old_balance = storage::get_balance(&env, &to);
         let new_balance = old_balance + amount;
@@ -83,9 +85,7 @@ impl YieldTokenTrait for YieldToken {
         // Initialize index for new users only (preserve high water mark for existing users)
         let old_index = storage::get_user_index(&env, &to);
         if old_index == 0 {
-            let yield_manager = storage::get_admin(&env);
-            let yield_manager_client = YieldManagerClient::new(&env, &yield_manager);
-            storage::set_user_index(&env, &to, yield_manager_client.get_exchange_rate());
+            storage::set_user_index(&env, &to, exchange_rate);
         }
 
         let total_supply = storage::get_total_supply(&env);
